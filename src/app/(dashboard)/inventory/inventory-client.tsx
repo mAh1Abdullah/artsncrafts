@@ -1,63 +1,131 @@
 'use client';
 
 import { useState } from 'react';
-import ProductTable from '@/components/products/product-table';
+import ProductTable, { StockFilterType } from '@/components/products/product-table';
 import ProductForm from '@/components/products/product-form';
 import { InventorySummaryCards } from '@/components/products/inventory-summary-cards';
-import { Product } from '@/lib/db/products';
+import { AddProductDialog } from '@/components/products/add-product-dialog';
+import { StockAuditLogTable } from '@/components/products/stock-audit-log-table';
+import { Product, Category, DEFAULT_CATEGORIES, StockAuditLog } from '@/lib/db/products';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Plus } from 'lucide-react';
+import { Package, ShieldCheck } from 'lucide-react';
 
 interface InventoryClientProps {
   products: Product[];
+  categories?: Category[];
+  initialLogs?: StockAuditLog[];
 }
 
-export default function InventoryClient({ products: initialProducts }: InventoryClientProps) {
+export default function InventoryClient({
+  products: initialProducts,
+  categories = DEFAULT_CATEGORIES,
+  initialLogs = [],
+}: InventoryClientProps) {
+  const [activeTab, setActiveTab] = useState<'products' | 'audit_logs'>('products');
   const [editingProduct, setEditingProduct] = useState<Product | undefined>(undefined);
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [stockFilter, setStockFilter] = useState<StockFilterType>('all');
 
   const handleEdit = (product: Product) => {
     setEditingProduct(product);
-    setDialogOpen(true);
+    setEditDialogOpen(true);
   };
 
-  const handleNewProductClick = () => {
-    setEditingProduct(undefined);
-    setDialogOpen(true);
-  };
-
-  const handleFormSuccess = () => {
-    setDialogOpen(false);
+  const handleEditSuccess = () => {
+    setEditDialogOpen(false);
   };
 
   return (
     <div className="space-y-6">
-      {/* Summary Cards Top Section */}
-      <InventorySummaryCards products={initialProducts} />
+      {/* Summary Cards Top Section with interactive filtering */}
+      <InventorySummaryCards
+        products={initialProducts}
+        activeStockFilter={stockFilter}
+        onStockFilterSelect={(filter) => {
+          setStockFilter(filter);
+          setActiveTab('products');
+        }}
+      />
 
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-lg font-bold text-slate-900">Product Catalog</h2>
-            <p className="text-xs text-slate-500">Manage all registered products, variants, and stock thresholds.</p>
+      {/* Main View Container */}
+      <div className="space-y-4">
+        {/* Navigation Tabs Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-200">
+          <div className="flex items-center gap-1.5 p-1 bg-slate-100/90 rounded-xl border border-slate-200/80 w-fit">
+            <button
+              type="button"
+              onClick={() => setActiveTab('products')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
+                activeTab === 'products'
+                  ? 'bg-white text-indigo-700 shadow-xs ring-1 ring-slate-200'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+              }`}
+            >
+              <Package className="h-4 w-4" />
+              <span>Product Catalog</span>
+              <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono ${
+                activeTab === 'products' ? 'bg-indigo-50 text-indigo-700' : 'bg-slate-200 text-slate-600'
+              }`}>
+                {initialProducts.length}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('audit_logs')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
+                activeTab === 'audit_logs'
+                  ? 'bg-white text-indigo-700 shadow-xs ring-1 ring-slate-200'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+              }`}
+            >
+              <ShieldCheck className="h-4 w-4 text-emerald-600" />
+              <span>Stock Audit Trail</span>
+              <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono ${
+                activeTab === 'audit_logs' ? 'bg-indigo-50 text-indigo-700' : 'bg-slate-200 text-slate-600'
+              }`}>
+                {initialLogs.length}
+              </span>
+            </button>
           </div>
-          <Button onClick={handleNewProductClick} className="bg-slate-900 text-white hover:bg-slate-800 text-xs flex items-center">
-            <Plus className="h-4 w-4 mr-1.5" />
-            Add Product
-          </Button>
+
+          <div className="flex items-center gap-2">
+            <AddProductDialog />
+          </div>
         </div>
-        <ProductTable products={initialProducts} onEdit={handleEdit} />
+
+        {/* Tab 1: Product Catalog Table */}
+        {activeTab === 'products' && (
+          <ProductTable
+            products={initialProducts}
+            categories={categories}
+            onEdit={handleEdit}
+            stockFilter={stockFilter}
+            onStockFilterChange={setStockFilter}
+          />
+        )}
+
+        {/* Tab 2: Stock Audit Logs Table */}
+        {activeTab === 'audit_logs' && (
+          <StockAuditLogTable
+            logs={initialLogs}
+            products={initialProducts}
+          />
+        )}
       </div>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      {/* Edit Product Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>{editingProduct ? 'Edit Product' : 'Add New Product'}</DialogTitle>
+            <DialogTitle>Edit Product</DialogTitle>
           </DialogHeader>
-          <ProductForm initialData={editingProduct} onSuccess={handleFormSuccess} />
+          {editingProduct && (
+            <ProductForm initialData={editingProduct} categories={categories} onSuccess={handleEditSuccess} />
+          )}
         </DialogContent>
       </Dialog>
     </div>
   );
 }
+

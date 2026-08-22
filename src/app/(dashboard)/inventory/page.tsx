@@ -1,13 +1,16 @@
-import { fetchProducts } from '@/lib/actions/products';
+import { fetchProducts, fetchCategories, fetchStockAuditLogs } from '@/lib/actions/products';
 import InventoryClient from './inventory-client';
 
 export default async function InventoryPage() {
-  const products = await fetchProducts();
+  const [products, categories, auditLogs] = await Promise.all([
+    fetchProducts(),
+    fetchCategories(),
+    fetchStockAuditLogs({ limit: 100 }),
+  ]);
 
   return (
-    <div className="container mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">Inventory Management</h1>
-      <InventoryClient products={products} />
+    <div className="container mx-auto p-4 max-w-7xl">
+      <InventoryClient products={products} categories={categories} initialLogs={auditLogs} />
     </div>
   );
 }

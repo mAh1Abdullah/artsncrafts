@@ -72,7 +72,7 @@ export const integrationPlatformEnum = pgEnum('integration_platform', [
 ]);
 
 // ============================================================================
-// 2. TENANCY & STORES (Multi-Tenant Isolation)
+// 2. TENANCY & STORES (Multi-Tenant Isolation with store_id)
 // ============================================================================
 export const tenants = pgTable('tenants', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -89,6 +89,7 @@ export const stores = pgTable(
   'stores',
   {
     id: uuid('id').primaryKey().defaultRandom(),
+    storeId: uuid('store_id'), // Multi-tenant store identifier alias
     tenantId: uuid('tenant_id')
       .references(() => tenants.id, { onDelete: 'cascade' })
       .notNull(),
@@ -103,12 +104,13 @@ export const stores = pgTable(
   },
   (table) => ({
     tenantIdx: index('store_tenant_idx').on(table.tenantId),
+    storeIdIdx: index('store_id_idx').on(table.storeId),
     tenantStoreCodeUnique: uniqueIndex('tenant_store_code_idx').on(table.tenantId, table.code),
   })
 );
 
 // ============================================================================
-// 3. ROLES & USERS (Role-Based Access Control)
+// 3. ROLES & USERS (Multi-Tenant Isolation with store_id)
 // ============================================================================
 export const roles = pgTable(
   'roles',
@@ -143,11 +145,11 @@ export const users = pgTable(
     tenantId: uuid('tenant_id')
       .references(() => tenants.id, { onDelete: 'cascade' })
       .notNull(),
-    storeId: uuid('store_id').references(() => stores.id, { onDelete: 'set null' }), // null = tenant-wide access
+    storeId: uuid('store_id').references(() => stores.id, { onDelete: 'set null' }), // Multi-tenant store isolation (null = tenant-wide access)
     roleId: uuid('role_id').references(() => roles.id, { onDelete: 'set null' }),
     name: text('name').notNull(),
     email: text('email').notNull(),
-    passcodeHash: text('passcode_hash'), // 4-6 digit fast PIN for quick cashier switching
+    passcodeHash: text('passcode_hash'), // Fast PIN for cashier shifts
     role: userRoleEnum('role').default('cashier').notNull(),
     isActive: boolean('is_active').default(true).notNull(),
     createdAt: timestamp('created_at', { mode: 'date' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
@@ -160,11 +162,11 @@ export const users = pgTable(
   })
 );
 
-// Alias for backwards compatibility with existing codebase
+// Alias for backwards compatibility
 export const storeUsers = users;
 
 // ============================================================================
-// 4. SUBSCRIPTIONS & MODULAR FEATURE FLAGS (Tier Gatekeeping)
+// 4. SUBSCRIPTIONS (Multi-Tenant Isolation with store_id)
 // ============================================================================
 export const subscriptions = pgTable(
   'subscriptions',
@@ -173,6 +175,7 @@ export const subscriptions = pgTable(
     tenantId: uuid('tenant_id')
       .references(() => tenants.id, { onDelete: 'cascade' })
       .notNull(),
+    storeId: uuid('store_id').references(() => stores.id, { onDelete: 'set null' }), // Multi-tenant store-level subscription link
     tier: subscriptionTierEnum('tier').default('starter').notNull(), // 'free', 'starter', 'pro', 'enterprise', 'custom'
     status: subscriptionStatusEnum('status').default('active').notNull(), // 'trial', 'active', 'past_due', 'canceled', 'suspended', 'expired'
     currentPeriodStart: timestamp('current_period_start', { mode: 'date' })
@@ -201,14 +204,15 @@ export const subscriptions = pgTable(
   },
   (table) => ({
     tenantSubIdx: uniqueIndex('sub_tenant_idx').on(table.tenantId),
+    subStoreIdx: index('sub_store_idx').on(table.storeId),
   })
 );
 
-// Alias for backwards compatibility with existing codebase
+// Alias for backwards compatibility
 export const tenantSubscriptions = subscriptions;
 
 // ============================================================================
-// 5. CATALOG & MULTI-LOCATION INVENTORY
+// 5. PRODUCTS & CATALOG (Multi-Tenant Isolation with store_id)
 // ============================================================================
 export const categories = pgTable(
   'categories',
@@ -230,11 +234,13 @@ export const products = pgTable(
   {
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+    storeId: uuid('store_id').references(() => stores.id, { onDelete: 'set null' }), // Multi-tenant store isolation
     categoryId: uuid('category_id').references(() => categories.id, { onDelete: 'set null' }),
     name: text('name').notNull(),
     description: text('description'),
     sku: text('sku').notNull(),
     barcode: text('barcode'), // EAN-13, Code128 or UPC
+    imageUrl: text('image_url'), // Product thumbnail & high-res image URL
     unitCost: numeric('unit_cost', { precision: 10, scale: 2 }).default('0.00'),
     unitPrice: numeric('unit_price', { precision: 10, scale: 2 }), // backward compatibility alias
     sellingPrice: numeric('selling_price', { precision: 10, scale: 2 }).notNull(),
@@ -251,6 +257,34 @@ export const products = pgTable(
     tenantSkuIdx: index('tenant_sku_idx').on(table.tenantId, table.sku),
     tenantBarcodeIdx: index('tenant_barcode_idx').on(table.tenantId, table.barcode),
     tenantNameIdx: index('tenant_prod_name_idx').on(table.tenantId, table.name),
+    productStoreIdx: index('product_store_idx').on(table.storeId),
+  })
+);
+
+export const stockAuditLogs = pgTable(
+  'stock_audit_logs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+    storeId: uuid('store_id').references(() => stores.id, { onDelete: 'set null' }),
+    productId: uuid('product_id').references(() => products.id, { onDelete: 'cascade' }).notNull(),
+    productName: text('product_name').notNull(),
+    sku: text('sku').notNull(),
+    previousStock: integer('previous_stock').notNull(),
+    changeAmount: integer('change_amount').notNull(), // positive or negative delta
+    newStock: integer('new_stock').notNull(),
+    reason: text('reason').notNull(), // e.g. "Restock shipment received", "Damaged packaging", "Physical count reconciliation"
+    adjustmentType: text('adjustment_type').default('correction').notNull(), // 'restock', 'damage_waste', 'physical_count', 'return_restock', 'theft_loss', 'correction'
+    userId: text('user_id').default('usr_admin_01').notNull(),
+    userName: text('user_name').default('Admin Manager').notNull(),
+    userRole: text('user_role').default('Manager').notNull(),
+    notes: text('notes'),
+    createdAt: timestamp('created_at', { mode: 'date' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+  },
+  (table) => ({
+    stockAuditProductIdx: index('stock_audit_product_idx').on(table.productId),
+    stockAuditTenantIdx: index('stock_audit_tenant_idx').on(table.tenantId),
+    stockAuditDateIdx: index('stock_audit_date_idx').on(table.createdAt),
   })
 );
 

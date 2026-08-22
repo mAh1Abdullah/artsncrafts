@@ -54,7 +54,20 @@ import {
   Wifi,
   WifiOff,
   Zap,
+  ChevronDown,
+  Sliders,
+  Minus,
+  X,
 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { InventorySalesSummary } from "@/components/dashboard/inventory-sales-summary";
 import {
   UserRole,
@@ -498,6 +511,11 @@ export default function Component() {
 
   // Inventory & Transfer State
   const [inventorySearchTerm, setInventorySearchTerm] = useState("");
+  const [selectedInventoryIds, setSelectedInventoryIds] = useState<Set<string>>(new Set());
+  const [isBulkStockModalOpen, setIsBulkStockModalOpen] = useState(false);
+  const [bulkStockMode, setBulkStockMode] = useState<"set" | "add" | "subtract">("set");
+  const [bulkStockValue, setBulkStockValue] = useState<number>(25);
+  const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
   const [isAddProductOpen, setIsAddProductOpen] = useState(false);
   const [isTransferOpen, setIsTransferOpen] = useState(false);
   const [transferProductId, setTransferProductId] = useState<string>("");
@@ -1582,6 +1600,176 @@ export default function Component() {
               );
             })()}
 
+            {/* Active Bulk Action Bar for Inventory Table */}
+            {selectedInventoryIds.size > 0 && (
+              <div className="bg-indigo-900 text-white px-4 py-3 rounded-xl shadow-md flex flex-wrap items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-indigo-700/80 font-mono text-xs font-bold text-indigo-100">
+                    {selectedInventoryIds.size}
+                  </div>
+                  <div>
+                    <span className="text-sm font-semibold text-white">
+                      {selectedInventoryIds.size} {selectedInventoryIds.size === 1 ? "item" : "items"} selected
+                    </span>
+                    <span className="text-xs text-indigo-200 ml-2 hidden sm:inline">
+                      for batch inventory operations
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  {/* Quick Preset Buttons */}
+                  <div className="hidden lg:flex items-center gap-1 bg-indigo-950/60 p-1 rounded-lg border border-indigo-700/50">
+                    <button
+                      onClick={() => {
+                        setProducts((prev) =>
+                          prev.map((p) => {
+                            if (selectedInventoryIds.has(p.id)) {
+                              const curr = p.storeStocks[selectedStore] ?? p.stock;
+                              const updatedBranchStock = curr + 10;
+                              const updatedGlobalStock = p.stock + 10;
+                              return {
+                                ...p,
+                                stock: updatedGlobalStock,
+                                storeStocks: { ...p.storeStocks, [selectedStore]: updatedBranchStock },
+                                status: updatedGlobalStock <= 0 ? "Out of Stock" : updatedGlobalStock <= p.minStock ? "Low Stock" : "In Stock",
+                              };
+                            }
+                            return p;
+                          })
+                        );
+                      }}
+                      className="px-2 py-1 text-xs font-medium text-indigo-200 hover:text-white hover:bg-indigo-800 rounded transition-colors"
+                      title="Add 10 units to current store stock"
+                    >
+                      +10 Stock
+                    </button>
+                    <button
+                      onClick={() => {
+                        setProducts((prev) =>
+                          prev.map((p) => {
+                            if (selectedInventoryIds.has(p.id)) {
+                              const curr = p.storeStocks[selectedStore] ?? p.stock;
+                              const updatedBranchStock = Math.max(0, curr - 5);
+                              const updatedGlobalStock = Math.max(0, p.stock - 5);
+                              return {
+                                ...p,
+                                stock: updatedGlobalStock,
+                                storeStocks: { ...p.storeStocks, [selectedStore]: updatedBranchStock },
+                                status: updatedGlobalStock <= 0 ? "Out of Stock" : updatedGlobalStock <= p.minStock ? "Low Stock" : "In Stock",
+                              };
+                            }
+                            return p;
+                          })
+                        );
+                      }}
+                      className="px-2 py-1 text-xs font-medium text-indigo-200 hover:text-white hover:bg-indigo-800 rounded transition-colors"
+                      title="Deduct 5 units from current store stock"
+                    >
+                      -5 Stock
+                    </button>
+                  </div>
+
+                  {/* Bulk Actions Dropdown */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="bg-white text-indigo-950 hover:bg-indigo-50 font-semibold h-8 text-xs gap-1.5 shadow-xs"
+                      >
+                        <Sliders className="h-3.5 w-3.5 text-indigo-600" />
+                        Bulk Actions
+                        <ChevronDown className="h-3.5 w-3.5 opacity-70" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-56 p-1.5">
+                      <DropdownMenuLabel className="text-xs text-slate-500 font-medium">
+                        Apply to {selectedInventoryIds.size} Selected Items
+                      </DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+
+                      <DropdownMenuItem
+                        onClick={() => {
+                          setBulkStockMode("set");
+                          setBulkStockValue(50);
+                          setIsBulkStockModalOpen(true);
+                        }}
+                        className="text-xs cursor-pointer py-2"
+                      >
+                        <Package className="h-4 w-4 mr-2 text-indigo-600" />
+                        Set Fixed Stock Level...
+                      </DropdownMenuItem>
+
+                      <DropdownMenuItem
+                        onClick={() => {
+                          setBulkStockMode("add");
+                          setBulkStockValue(10);
+                          setIsBulkStockModalOpen(true);
+                        }}
+                        className="text-xs cursor-pointer py-2"
+                      >
+                        <Plus className="h-4 w-4 mr-2 text-emerald-600" />
+                        Add Stock (+X Units)...
+                      </DropdownMenuItem>
+
+                      <DropdownMenuItem
+                        onClick={() => {
+                          setBulkStockMode("subtract");
+                          setBulkStockValue(5);
+                          setIsBulkStockModalOpen(true);
+                        }}
+                        className="text-xs cursor-pointer py-2"
+                      >
+                        <Minus className="h-4 w-4 mr-2 text-amber-600" />
+                        Deduct Stock (-X Units)...
+                      </DropdownMenuItem>
+
+                      <DropdownMenuSeparator />
+
+                      <DropdownMenuItem
+                        onClick={() => {
+                          checkAction("inventory:delete", () => {
+                            setIsBulkDeleteModalOpen(true);
+                          });
+                        }}
+                        className="text-xs text-rose-600 focus:text-rose-700 focus:bg-rose-50 cursor-pointer py-2"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2 text-rose-600" />
+                        Delete Selected Items...
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+
+                  {/* Direct Batch Delete Button */}
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => {
+                      checkAction("inventory:delete", () => {
+                        setIsBulkDeleteModalOpen(true);
+                      });
+                    }}
+                    className="bg-rose-600 hover:bg-rose-700 text-white font-medium h-8 text-xs gap-1.5 shadow-xs"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">Delete</span> ({selectedInventoryIds.size})
+                  </Button>
+
+                  {/* Clear Selection */}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSelectedInventoryIds(new Set())}
+                    className="text-indigo-200 hover:text-white hover:bg-indigo-800 h-8 text-xs px-2.5"
+                  >
+                    <X className="h-3.5 w-3.5 mr-1" />
+                    Clear
+                  </Button>
+                </div>
+              </div>
+            )}
+
             <div className="flex items-center justify-between gap-3">
               <div className="relative max-w-sm flex-1">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
@@ -1601,6 +1789,38 @@ export default function Component() {
               <Table>
                 <TableHeader className="bg-slate-50/80">
                   <TableRow>
+                    {/* Header Checkbox */}
+                    <TableHead className="w-12 px-3 py-3">
+                      <div className="flex items-center justify-center">
+                        {(() => {
+                          const visibleProds = products.filter(
+                            (p) =>
+                              p.name.toLowerCase().includes(inventorySearchTerm.toLowerCase()) ||
+                              p.sku.toLowerCase().includes(inventorySearchTerm.toLowerCase()) ||
+                              p.barcode.includes(inventorySearchTerm)
+                          );
+                          const allSelected = visibleProds.length > 0 && visibleProds.every((p) => selectedInventoryIds.has(p.id));
+                          const someSelected = visibleProds.some((p) => selectedInventoryIds.has(p.id)) && !allSelected;
+                          return (
+                            <Checkbox
+                              checked={allSelected ? true : someSelected ? "indeterminate" : false}
+                              onCheckedChange={() => {
+                                if (allSelected) {
+                                  const newSet = new Set(selectedInventoryIds);
+                                  visibleProds.forEach((p) => newSet.delete(p.id));
+                                  setSelectedInventoryIds(newSet);
+                                } else {
+                                  const newSet = new Set(selectedInventoryIds);
+                                  visibleProds.forEach((p) => newSet.add(p.id));
+                                  setSelectedInventoryIds(newSet);
+                                }
+                              }}
+                              aria-label="Select all products"
+                            />
+                          );
+                        })()}
+                      </div>
+                    </TableHead>
                     <TableHead className="text-xs font-semibold">SKU & Barcode</TableHead>
                     <TableHead className="text-xs font-semibold">Product Name</TableHead>
                     <TableHead className="text-xs font-semibold">Category</TableHead>
@@ -1623,8 +1843,30 @@ export default function Component() {
                     )
                     .map((prod) => {
                       const branchStock = prod.storeStocks[selectedStore] ?? prod.stock;
+                      const isSelected = selectedInventoryIds.has(prod.id);
                       return (
-                        <TableRow key={prod.id}>
+                        <TableRow
+                          key={prod.id}
+                          className={isSelected ? "bg-indigo-50/70 hover:bg-indigo-50/90" : "hover:bg-slate-50/70"}
+                        >
+                          {/* Row Checkbox */}
+                          <TableCell className="w-12 px-3 py-3">
+                            <div className="flex items-center justify-center">
+                              <Checkbox
+                                checked={isSelected}
+                                onCheckedChange={() => {
+                                  const newSet = new Set(selectedInventoryIds);
+                                  if (newSet.has(prod.id)) {
+                                    newSet.delete(prod.id);
+                                  } else {
+                                    newSet.add(prod.id);
+                                  }
+                                  setSelectedInventoryIds(newSet);
+                                }}
+                                aria-label={`Select ${prod.name}`}
+                              />
+                            </div>
+                          </TableCell>
                           <TableCell>
                             <div className="font-mono text-xs font-semibold text-slate-800">{prod.sku}</div>
                             <div className="text-[10px] text-slate-400 font-mono flex items-center">
@@ -2755,71 +2997,152 @@ export default function Component() {
       {/* MODAL 3: ADD PRODUCT */}
       {/* ========================================================================= */}
       <Dialog open={isAddProductOpen} onOpenChange={setIsAddProductOpen}>
-        <DialogContent className="sm:max-w-[480px]">
+        <DialogContent className="sm:max-w-[540px] p-0 overflow-hidden bg-white border border-slate-200 shadow-xl rounded-xl">
           <form onSubmit={handleAddProduct}>
-            <DialogHeader>
-              <DialogTitle className="text-base font-bold">Add Catalog Product</DialogTitle>
-              <DialogDescription className="text-xs">
-                Create a new product with barcode, multi-location stock, and e-commerce sync support.
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="grid gap-3 py-4 text-xs">
-              <div>
-                <Label htmlFor="prod-name" className="text-xs font-medium">
-                  Product Name *
-                </Label>
-                <Input id="prod-name" name="name" required placeholder="e.g. Handcrafted Shital Pati Mat" className="mt-1" />
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <Label htmlFor="prod-sku" className="text-xs font-medium">
-                    SKU Code *
-                  </Label>
-                  <Input id="prod-sku" name="sku" required placeholder="e.g. SPM-001" className="mt-1 font-mono" />
+            <div className="bg-slate-50/80 px-6 py-5 border-b border-slate-100">
+              <DialogHeader className="gap-1.5">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-indigo-100 text-indigo-700 rounded-lg">
+                    <Package className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <DialogTitle className="text-base font-bold text-slate-900 leading-tight">
+                      Add New Product
+                    </DialogTitle>
+                    <DialogDescription className="text-xs text-slate-500 mt-0.5">
+                      Register a new item with pricing, SKU barcode, and inventory threshold limits.
+                    </DialogDescription>
+                  </div>
                 </div>
-                <div>
-                  <Label htmlFor="prod-barcode" className="text-xs font-medium">
-                    Barcode (EAN-13 / Code128)
-                  </Label>
-                  <Input id="prod-barcode" name="barcode" placeholder="e.g. 8901234567895" className="mt-1 font-mono" />
-                </div>
-              </div>
+              </DialogHeader>
+            </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <Label htmlFor="prod-category" className="text-xs font-medium">
+            <div className="p-6 space-y-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="modal-prod-name" className="text-xs font-semibold text-slate-700">
+                    Product Name <span className="text-rose-500">*</span>
+                  </Label>
+                  <Input
+                    id="modal-prod-name"
+                    name="name"
+                    required
+                    placeholder="e.g. Handcrafted Shital Pati Mat"
+                    className="h-9 text-xs"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="modal-prod-cat" className="text-xs font-semibold text-slate-700">
                     Category
                   </Label>
-                  <Input id="prod-category" name="category" defaultValue="Handicrafts" className="mt-1" />
-                </div>
-                <div>
-                  <Label htmlFor="prod-stock" className="text-xs font-medium">
-                    Initial Stock ({selectedStore})
-                  </Label>
-                  <Input id="prod-stock" name="stock" type="number" defaultValue="20" required className="mt-1" />
+                  <select
+                    id="modal-prod-cat"
+                    name="category"
+                    defaultValue="Handicrafts"
+                    className="w-full h-9 border border-slate-200 rounded-md px-3 bg-white text-xs text-slate-800"
+                  >
+                    <option value="Handicrafts">Handicrafts</option>
+                    <option value="Electronics">Electronics</option>
+                    <option value="Accessories">Accessories</option>
+                    <option value="Apparel">Apparel</option>
+                    <option value="Groceries">Groceries</option>
+                    <option value="Stationery">Stationery</option>
+                    <option value="Home & Living">Home & Living</option>
+                  </select>
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <Label htmlFor="prod-cost" className="text-xs font-medium">
-                    Unit Cost ($)
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="modal-prod-sku" className="text-xs font-semibold text-slate-700">
+                    SKU Code <span className="text-rose-500">*</span>
                   </Label>
-                  <Input id="prod-cost" name="unitCost" type="number" step="0.01" defaultValue="10.00" className="mt-1 font-mono" />
+                  <Input
+                    id="modal-prod-sku"
+                    name="sku"
+                    required
+                    placeholder="e.g. SPM-001"
+                    className="h-9 text-xs font-mono"
+                  />
                 </div>
-                <div>
-                  <Label htmlFor="prod-price" className="text-xs font-medium">
-                    Selling Price ($) *
+                <div className="space-y-1.5">
+                  <Label htmlFor="modal-prod-barcode" className="text-xs font-semibold text-slate-700 flex items-center gap-1">
+                    <Barcode className="h-3.5 w-3.5 text-slate-400" />
+                    Barcode (EAN-13 / Code128)
                   </Label>
-                  <Input id="prod-price" name="price" type="number" step="0.01" defaultValue="24.99" required className="mt-1 font-mono" />
+                  <Input
+                    id="modal-prod-barcode"
+                    name="barcode"
+                    placeholder="e.g. 8901234567895"
+                    className="h-9 text-xs font-mono"
+                  />
                 </div>
-                <div>
-                  <Label htmlFor="prod-min" className="text-xs font-medium">
-                    Reorder Alert
+              </div>
+
+              <div className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl space-y-3">
+                <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <DollarSign className="h-3.5 w-3.5 text-emerald-600" />
+                  Pricing & Valuation
+                </span>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label htmlFor="modal-prod-cost" className="text-xs text-slate-600 font-medium">
+                      Unit Cost ($)
+                    </Label>
+                    <Input
+                      id="modal-prod-cost"
+                      name="unitCost"
+                      type="number"
+                      step="0.01"
+                      defaultValue="10.00"
+                      className="h-9 text-xs font-mono bg-white"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="modal-prod-price" className="text-xs text-slate-600 font-medium">
+                      Selling Price ($) <span className="text-rose-500">*</span>
+                    </Label>
+                    <Input
+                      id="modal-prod-price"
+                      name="price"
+                      type="number"
+                      step="0.01"
+                      defaultValue="24.99"
+                      required
+                      className="h-9 text-xs font-mono bg-white"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="modal-prod-stock" className="text-xs font-semibold text-slate-700 flex items-center gap-1">
+                    <Layers className="h-3.5 w-3.5 text-slate-400" />
+                    Initial Stock ({storesList.find((s) => s.id === selectedStore)?.name?.split(" ")[0] || selectedStore})
                   </Label>
-                  <Input id="prod-min" name="minStock" type="number" defaultValue="5" className="mt-1 font-mono" />
+                  <Input
+                    id="modal-prod-stock"
+                    name="stock"
+                    type="number"
+                    defaultValue="20"
+                    required
+                    className="h-9 text-xs font-mono"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="modal-prod-min" className="text-xs font-semibold text-slate-700">
+                    Reorder Alert Threshold
+                  </Label>
+                  <Input
+                    id="modal-prod-min"
+                    name="minStock"
+                    type="number"
+                    defaultValue="5"
+                    className="h-9 text-xs font-mono"
+                  />
                 </div>
               </div>
 
@@ -2831,18 +3154,27 @@ export default function Component() {
                   defaultChecked
                   className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                 />
-                <Label htmlFor="syncedToEcommerce" className="text-xs font-medium cursor-pointer">
+                <Label htmlFor="syncedToEcommerce" className="text-xs font-medium cursor-pointer text-slate-700">
                   Sync automatically to connected E-Commerce stores (Shopify / WooCommerce)
                 </Label>
               </div>
             </div>
 
-            <DialogFooter className="gap-2">
-              <Button type="button" variant="outline" onClick={() => setIsAddProductOpen(false)} className="text-xs">
+            <DialogFooter className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsAddProductOpen(false)}
+                className="h-9 text-xs font-medium border-slate-200 text-slate-600 hover:bg-slate-100"
+              >
                 Cancel
               </Button>
-              <Button type="submit" className="text-xs bg-slate-900 text-white">
-                Save Product
+              <Button
+                type="submit"
+                className="h-9 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-1.5 px-4"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Save to Inventory</span>
               </Button>
             </DialogFooter>
           </form>
@@ -3269,6 +3601,206 @@ export default function Component() {
                 Switch to {accessDeniedModal.requiredRole?.toUpperCase() || "ADMIN"} Role
               </Button>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ========================================================================= */}
+      {/* MODAL: BULK STOCK LEVEL MODIFIER */}
+      {/* ========================================================================= */}
+      <Dialog open={isBulkStockModalOpen} onOpenChange={setIsBulkStockModalOpen}>
+        <DialogContent className="sm:max-w-[440px]">
+          <DialogHeader>
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-indigo-100 text-indigo-600 rounded-xl">
+                <Package className="h-5 w-5" />
+              </div>
+              <div>
+                <DialogTitle className="text-base font-bold text-slate-900">
+                  Update Stock ({selectedInventoryIds.size} Items)
+                </DialogTitle>
+                <DialogDescription className="text-xs text-slate-500 mt-0.5">
+                  Batch modify stock levels for {storesList.find((s) => s.id === selectedStore)?.name}.
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div>
+              <Label className="text-xs font-semibold text-slate-700 block mb-1.5">
+                Operation Type
+              </Label>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setBulkStockMode("set")}
+                  className={`py-2 px-2 text-xs font-semibold rounded-lg border text-center transition-all ${
+                    bulkStockMode === "set"
+                      ? "bg-indigo-50 border-indigo-400 text-indigo-700 shadow-xs"
+                      : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  Set Fixed
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBulkStockMode("add")}
+                  className={`py-2 px-2 text-xs font-semibold rounded-lg border text-center transition-all ${
+                    bulkStockMode === "add"
+                      ? "bg-emerald-50 border-emerald-400 text-emerald-700 shadow-xs"
+                      : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  + Add Stock
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBulkStockMode("subtract")}
+                  className={`py-2 px-2 text-xs font-semibold rounded-lg border text-center transition-all ${
+                    bulkStockMode === "subtract"
+                      ? "bg-amber-50 border-amber-400 text-amber-700 shadow-xs"
+                      : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  - Deduct Stock
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-xs font-semibold text-slate-700 block mb-1.5">
+                {bulkStockMode === "set"
+                  ? "New Stock Value (Units)"
+                  : bulkStockMode === "add"
+                  ? "Units to Add"
+                  : "Units to Deduct"}
+              </Label>
+              <Input
+                type="number"
+                min="0"
+                value={bulkStockValue}
+                onChange={(e) => setBulkStockValue(Number(e.target.value) || 0)}
+                className="font-mono text-sm h-10"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsBulkStockModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                setProducts((prev) =>
+                  prev.map((p) => {
+                    if (selectedInventoryIds.has(p.id)) {
+                      const currentBranch = p.storeStocks[selectedStore] ?? p.stock;
+                      let newBranchStock = currentBranch;
+                      let newGlobalStock = p.stock;
+
+                      if (bulkStockMode === "set") {
+                        const delta = bulkStockValue - currentBranch;
+                        newBranchStock = bulkStockValue;
+                        newGlobalStock = Math.max(0, p.stock + delta);
+                      } else if (bulkStockMode === "add") {
+                        newBranchStock = currentBranch + bulkStockValue;
+                        newGlobalStock = p.stock + bulkStockValue;
+                      } else {
+                        newBranchStock = Math.max(0, currentBranch - bulkStockValue);
+                        newGlobalStock = Math.max(0, p.stock - bulkStockValue);
+                      }
+
+                      return {
+                        ...p,
+                        stock: newGlobalStock,
+                        storeStocks: {
+                          ...p.storeStocks,
+                          [selectedStore]: newBranchStock,
+                        },
+                        status:
+                          newGlobalStock <= 0
+                            ? "Out of Stock"
+                            : newGlobalStock <= p.minStock
+                            ? "Low Stock"
+                            : "In Stock",
+                      };
+                    }
+                    return p;
+                  })
+                );
+                setIsBulkStockModalOpen(false);
+                setSelectedInventoryIds(new Set());
+              }}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium"
+            >
+              Apply to {selectedInventoryIds.size} Items
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ========================================================================= */}
+      {/* MODAL: BULK DELETE CONFIRMATION */}
+      {/* ========================================================================= */}
+      <Dialog open={isBulkDeleteModalOpen} onOpenChange={setIsBulkDeleteModalOpen}>
+        <DialogContent className="sm:max-w-[440px]">
+          <DialogHeader>
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-rose-100 text-rose-600 rounded-xl">
+                <Trash2 className="h-5 w-5" />
+              </div>
+              <div>
+                <DialogTitle className="text-base font-bold text-slate-900">
+                  Delete {selectedInventoryIds.size} Products?
+                </DialogTitle>
+                <DialogDescription className="text-xs text-slate-500 mt-0.5">
+                  Are you sure you want to delete these products from catalog?
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="py-2">
+            <div className="max-h-36 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-2 space-y-1">
+              {Array.from(selectedInventoryIds).map((id) => {
+                const prod = products.find((p) => p.id === id);
+                if (!prod) return null;
+                return (
+                  <div key={id} className="text-xs flex items-center justify-between px-2 py-1 bg-white rounded border border-slate-100">
+                    <span className="font-medium text-slate-800 truncate max-w-[220px]">{prod.name}</span>
+                    <span className="font-mono text-slate-400 text-[11px]">{prod.sku}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsBulkDeleteModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => {
+                setProducts((prev) => prev.filter((p) => !selectedInventoryIds.has(p.id)));
+                setIsBulkDeleteModalOpen(false);
+                setSelectedInventoryIds(new Set());
+              }}
+              className="bg-rose-600 hover:bg-rose-700"
+            >
+              Confirm Batch Delete ({selectedInventoryIds.size})
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -21,4 +21,5 @@ if (databaseUrl) {
 
 export { db };
 export * from './schema';
+export * from './seed';
 export default db;
