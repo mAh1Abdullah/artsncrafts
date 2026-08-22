@@ -31,15 +31,25 @@ export default function ProductForm({ initialData, onSuccess }: ProductFormProps
   const router = useRouter();
   const { register, handleSubmit, reset, formState: { errors, isSubmitting, isSubmitSuccessful } } = useForm<z.infer<typeof productSchema>>({
     resolver: zodResolver(productSchema),
-    defaultValues: initialData || {
-      name: '',
-      description: '',
-      sku: '',
-      unitPrice: 0,
-      sellingPrice: 0,
-      currentStock: 0,
-      reorderLevel: 0,
-    },
+    defaultValues: initialData
+      ? {
+          name: initialData.name,
+          description: initialData.description ?? '',
+          sku: initialData.sku,
+          unitPrice: Number(initialData.unitPrice) || 0,
+          sellingPrice: Number(initialData.sellingPrice) || 0,
+          currentStock: Number(initialData.currentStock) || 0,
+          reorderLevel: Number(initialData.reorderLevel) || 0,
+        }
+      : {
+          name: '',
+          description: '',
+          sku: '',
+          unitPrice: 0,
+          sellingPrice: 0,
+          currentStock: 0,
+          reorderLevel: 0,
+        },
   });
 
   useEffect(() => {
@@ -53,9 +63,17 @@ export default function ProductForm({ initialData, onSuccess }: ProductFormProps
 
   const onSubmit = async (data: z.infer<typeof productSchema>) => {
     if (initialData) {
-      await editProduct(initialData.id, data);
+      await editProduct(initialData.id, {
+        ...data,
+        unitPrice: String(data.unitPrice),
+        sellingPrice: String(data.sellingPrice),
+      });
     } else {
-      await addProduct(data);
+      await addProduct({
+        ...data,
+        unitPrice: String(data.unitPrice),
+        sellingPrice: String(data.sellingPrice),
+      });
     }
     router.refresh();
   };

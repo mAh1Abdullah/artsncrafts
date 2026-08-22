@@ -4,7 +4,7 @@ import { useState } from 'react';
 import ProductTable from '@/components/products/product-table';
 import ProductForm from '@/components/products/product-form';
 import { Product } from '@/lib/db/products';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 
 interface InventoryClientProps {

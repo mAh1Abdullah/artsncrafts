@@ -16,6 +16,7 @@ export async function addProduct(product: NewProduct) {
   try {
     await createProduct(product);
   } catch (error) {
+    console.error('Failed to add product:', error);
     return {
       success: false,
       message: 'Database Error: Failed to Create Product.',
@@ -30,6 +31,7 @@ export async function editProduct(id: string, product: Partial<NewProduct>) {
   try {
     await updateProduct(id, product);
   } catch (error) {
+    console.error('Failed to edit product:', error);
     return {
       success: false,
       message: 'Database Error: Failed to Update Product.',
@@ -45,6 +47,7 @@ export async function removeProduct(id: string): Promise<void> {
     await deleteProduct(id);
     revalidatePath('/inventory');
   } catch (error) {
+    console.error('Failed to remove product:', error);
     throw new Error('Database Error: Failed to Delete Product.');
   }
 }
