@@ -1,92 +1,113 @@
-# Feature Development & Implementation Outline
+# WAW POS – Complete Feature Development & Implementation Plan
 
-This outline provides a general workflow for developing each major feature (e.g., Inventory Management, Expense Tracking, Sales Directory).
-
-# WAW POS - Development Outline
-
-1. **Database Schema Refactor (Drizzle ORM):**
-   * Update `src/lib/db/schema.ts` to introduce `store_id` foreign keys across all entities to support multi-tenancy.
-   * Add subscription and module permission tracking fields.
-2. **API & Webhook Infrastructure:**
-   * Build out secure API routes under `src/app/api/v1/` for external e-commerce synchronization.
-   * Implement token-based authentication middleware.
-3. **UI & POS Terminal Enhancement:**
-   * Refine the existing inventory and product tables (`src/components/products/`)[cite: 1].
-   * Build out the high-speed sales register screen optimized for fast checkout workflows.
-4. **Testing & Deployment:**
-   * Validate server actions and API contracts.
-   * Configure environment variables for production edge deployment.
-
-**Phase 0: Project Initialization (One-time Setup)**
-
-1.  **Initialize Next.js Project:**
-    *   Run `npx create-next-app@latest pos_application --typescript --tailwind --eslint --app --src-dir --use-pnpm` (or your preferred package manager).
-    *   Configure `next.config.js` for PWA (Next PWA).
-    *   Set up `tsconfig.json` and ESLint.
-2.  **Database & ORM Setup:**
-    *   Install Drizzle ORM and Cloudflare D1 client dependencies.
-    *   Configure Drizzle for D1 in `src/lib/db`.
-    *   Set up initial Drizzle schema and migration scripts.
-3.  **Authentication Setup:**
-    *   Install Auth.js dependencies.
-    *   Configure Auth.js with **Google OAuth** as an authentication provider, along with any other desired providers and callbacks in `src/lib/auth`.
-    *   Create basic sign-in/sign-out pages in `src/app/(auth)`.
-4.  **Global Styling & Layout:**
-    *   Define global CSS in `src/styles`.
-    *   Create the root `layout.tsx` and `page.tsx` in `src/app`.
+This comprehensive master blueprint outlines the structure, phases, and workflows for developing the **waw-pos** system, incorporating core multi-tenant POS infrastructure, modular architecture, advanced e-commerce integrations, local Bangladeshi payment gateways, and logistics tools.
 
 ---
 
-**Iterative Feature Development Workflow (for each major feature, e.g., Inventory Management)**
+## **Phase 0: Project Initialization & Setup**
 
-**Step 1: Data Model & Database Layer**
-
-1.  **Refine Data Model:** Review and finalize the Drizzle schema for the feature's entities (e.g., `Product`, `Sale`, `Expense`) in `src/lib/db/schema.ts`.
-2.  **Database Operations (CRUD):**
-    *   Write Drizzle ORM functions in `src/lib/db/` (e.g., `products.ts`, `sales.ts`) for Create, Read, Update, and Delete (CRUD) operations.
-    *   Implement basic validation at the database layer where appropriate.
-3.  **Migrations:**
-    *   Generate and apply Drizzle migrations to your Cloudflare D1 database.
-
-**Step 2: Server Actions (Backend Logic)**
-
-1.  **Define Server Actions:** Create Server Actions within components or pages, or in a dedicated `src/lib/actions/` directory for reusable server-side logic.
-2.  **Implement Server Action Functions:**
-    *   Write asynchronous functions marked with `'use server'` that directly interact with the database via Drizzle ORM.
-    *   Implement server-side input validation and error handling within these actions.
-    *   Integrate authentication and authorization using Auth.js to protect actions.
-
-**Step 3: Frontend UI & Logic**
-
-1.  **UI Components:**
-    *   Develop reusable React components in `src/components/` (e.g., `ProductForm.tsx`, `ProductTable.tsx`).
-    *   Focus on modularity and reusability.
-2.  **Pages/Routes:**
-    *   Create the necessary pages in `src/app/(dashboard)/` (e.g., `inventory/page.tsx`, `sales/page.tsx`).
-    *   Integrate the UI components.
-3.  **Data Fetching & State Management:**
-    *   Utilize Server Actions directly from client components or server components for data mutations and fetching.
-    *   Implement client-side input validation and provide user feedback.
-4.  **PWA Integration (as needed):**
-    *   For offline capabilities, implement service worker logic (via Next PWA) to cache data or queue offline operations.
-
-**Step 4: Testing & Refinement**
-
-1.  **Unit Tests:** Write tests for individual functions (e.g., utility functions, Drizzle ORM functions, Server Actions) in `tests/unit/`.
-2.  **Integration Tests:** Test the interaction between components, Server Actions, and the database in `tests/integration/`.
-3.  **End-to-End Tests:** Use a tool like Playwright or Cypress to simulate user flows (e.g., adding a product, recording a sale) in `tests/e2e/`.
-4.  **Error Handling & Edge Cases:** Thoroughly test how the application behaves under various error conditions and edge cases.
-5.  **Performance & Usability:** Optimize for performance and ensure a smooth user experience.
+1. **Initialize Next.js Project:**
+   * Run `npx create-next-app@latest pos_application --typescript --tailwind --eslint --app --src-dir --use-pnpm` (or your preferred package manager).
+   * Configure `next.config.js` for PWA (Next PWA)
+   * Set up `tsconfig.json` and ESLint.
+2. **Database & ORM Setup:**
+   * Install Drizzle ORM and Cloudflare D1 client dependencies.
+   * Configure Drizzle for D1 in `src/lib/db`.
+   * Set up initial Drizzle schema (scoped with tenant `store_id` enforcement) and migration scripts.
+3. **Authentication Setup:**
+   * Install Auth.js dependencies.
+   * Configure Auth.js with **Google OAuth** as an authentication provider, along with custom callbacks in `src/lib/auth`.
+   * Create basic sign-in/sign-out pages in `src/app/(auth)`.
+4. **Global Styling & Layout:**
+   * Define global CSS in `src/styles`.
+   * Create the root `layout.tsx` and `page.tsx` in `src/app` featuring a modular, subscription-aware dashboard navigation layout.
 
 ---
 
-**Suggested First Feature to Implement:**
+## **Phase 1: Core POS, Inventory, & Accounting Foundation**
+*Goal: Ensure the standalone POS terminal, stock tracking, and local business accounting are 100% stable.*
 
-I recommend starting with **Inventory Management (Product CRUD)**. This feature is foundational and will allow you to establish the full development pipeline from database schema to UI, including:
+1. **Database Schema Multi-Tenancy (`store_id`):**
+   * Update `src/lib/db/schema.ts` to introduce `store_id` foreign keys across all entities to support multi-tenancy and multi-vendor isolation.
+   * Add subscription tiers, active module flags, and permission tracking fields.
+2. **High-Speed Checkout Register UI:**
+   * Build out the cashier terminal view supporting barcode scanning (Code128/EAN), quick cash/card calculation, manual payment options, and instant receipt generation.
+3. **Purchase & Expense Management:**
+   * Finalize the purchase tracking system to log stock intakes and supplier costs alongside existing expense tracking routes (`/api/v1/expenses`).
+4. **Profit/Loss & Income Accounting Reports:**
+   * Implement automated calculation logic that aggregates total revenue from sales minus purchases and expenses to generate clean Profit & Loss statements.
 
-*   Defining the `Product` schema in Drizzle.
-*   Implementing CRUD operations for products.
-*   Creating Server Actions for products.
-*   Building UI components for adding, viewing, editing, and deleting products.
+---
 
-This will give you a solid working base and validate your chosen tech stack before moving on to more complex features like sales transactions or reporting.
+## **Phase 2: E-Commerce & Multi-Vendor Ecosystem**
+*Goal: Bridge your POS with single/multi-vendor online architectures and advanced marketing tools.*
+
+1. **Single & Multi-Vendor Website Support:**
+   * Design the core API architecture to support multi-tenant vendor separation, allowing distinct local merchants to manage individual inventories under a unified platform.
+2. **Landing Page & Campaign System:**
+   * Build flexible configuration hooks for single-product promotional landing pages with built-in conversion tracking.
+3. **Reseller Program Module:**
+   * Introduce a referral/reseller tracking structure to log sales generated by specific affiliate partners and calculate their commissions.
+4. **Content & SEO Modules (Blog & Brands):**
+   * Integrate lightweight blogging and brand management schemas to drive organic traffic and SEO-friendly product pages.
+
+---
+
+## **Phase 3: Checkout Intelligence & Bangladeshi Payment Gateways**
+*Goal: Localize transaction handling to match the exact demands of the Bangladeshi retail market.*
+
+1. **Local Payment Gateway Integration:**
+   * Integrate Bangladeshi mobile financial services and payment aggregators: **bKash**, **Nagad**, **UddoktaPay**, and **AmarPay**, alongside a **Manual Payment Gateway** fallback (e.g., bank transfer or Cash on Delivery).
+2. **Customer Advance Payment System:**
+   * Update the order and checkout workflow to support partial (advance) payments versus full payments, tracking due balances natively.
+3. **Abandoned Cart & Incomplete Order Recovery:**
+   * Build a logging table for lost or incomplete checkouts so store owners can view abandoned carts and follow up with customers.
+4. **Fraud Checking System:**
+   * Implement order-risk evaluation logic (e.g., flagging suspicious phone numbers or high return rates based on historical transaction data).
+
+---
+
+## **Phase 4: Logistics, SMS, & Live Tracking Automation**
+*Goal: Automate fulfillment and customer communications using leading local providers.*
+
+1. **Courier Service API Integration:**
+   * Integrate **Pathao** and **Stedfast Courier** APIs directly into the dashboard, enabling one-click parcel booking and status synchronization.
+2. **Real-Time Order & Courier Tracking:**
+   * Build live tracking views for both admin and customers to check courier shipment statuses in real-time.
+3. **SMS Gateway & OTP Verification:**
+   * Integrate a local Bulk SMS API (such as Mobireach or Greenweb) for customer **OTP order verification** during checkout and automated **Admin Order SMS Notifications**.
+
+---
+
+## **Phase 5: SaaS Subscription & Headless Integration Layer**
+*Goal: Turn the platform into a subscription-based product where users unlock modules dynamically.*
+
+1. **Subscription Tier Management:**
+   * Introduce subscription packages (`Starter`, `Pro`, `Enterprise`) linked to the tenant store accounts.
+2. **Dynamic Module Gates:**
+   * Implement UI wrapper components and backend API middleware (`src/lib/api-guard.ts`) to lock or unlock specific features (like Courier Integration or Multi-Vendor features) depending on the active subscription plan.
+3. **Third-Party Headless Sync APIs:**
+   * Finalize the public-facing versioned endpoints (`/api/v1/inventory/sync`, `/api/v1/orders/webhook`) so external e-commerce sites (Shopify, WooCommerce, custom apps) can seamlessly plug into WAW POS.
+
+---
+
+## **Iterative Feature Development Workflow (Applied to Each Module)**
+
+For every feature or module developed across the phases above, follow this four-step workflow:
+
+* **Step 1: Data Model & Database Layer**
+  * Refine and finalize the Drizzle schema for the feature's entities in `src/lib/db/schema.ts`.
+  * Write Drizzle ORM CRUD functions in `src/lib/db/` with tenant-level filtering (`store_id`).
+  * Generate and apply Drizzle migrations.
+* **Step 2: Server Actions & Backend Logic**
+  * Create Server Actions in `src/lib/actions/` with server-side validation and error handling.
+  * Protect actions using Auth.js and permission/subscription guards (`src/lib/api-guard.ts`).
+  * Wire up external integrations (payment gateways, courier APIs, SMS tools) as needed.
+* **Step 3: Frontend UI & Logic**
+  * Develop reusable React components in `src/components/`.
+  * Create corresponding pages under `src/app/(dashboard)/`.
+  * Implement feature-flag gates in the UI to restrict modules based on subscription plans.
+  * Integrate PWA service worker caching logic for offline capabilities if required.
+* **Step 4: Testing & Refinement**
+  * Write unit, integration, and end-to-end (E2E) tests (using Playwright/Cypress).
+  * Conduct thorough error handling, performance optimization, and edge-case testing.
