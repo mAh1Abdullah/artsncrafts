@@ -1,31 +1,39 @@
 # WAW POS - Feature Roadmap
 
 ## Core Features: Core POS & Register (Starter Tier)
-- Product catalog management (CRUD operations via Drizzle/SQLite).
-- Fast checkout register interface with cart calculation and subtotal/tax/discount handling.
-- Basic cash payment processing and receipt formatting.
-- **Product Management:** Add, edit, delete products with details like name, description, price, SKU, unit cost, current stock, and reorder level.
-- **Stock Management:** Track current stock levels, set reorder levels, and receive automated low stock alerts.
-- **Sales Transaction:** Record sales, including multiple items, quantities, and prices. Support for different payment methods (cash, card, UPI).
-- **Expense Logging:** Categorize and record all business expenses with date, amount, and description.
-- **Comprehensive Reporting:** Generate detailed sales, expense, and inventory reports with various metrics and breakdowns.
-- **Data Export:** Export all reports in both CSV and formatted PDF formats.
+- **Product Catalog Management:** Comprehensive CRUD operations for products (name, description, price, SKU, unit cost, current stock, reorder levels, and categories) via Drizzle/SQLite.
+- **Fast Checkout Register Interface:** High-speed terminal with real-time cart calculation, subtotaling, tax management, and discount handling.
+- **Flexible Payment Processing:** Support for basic cash processing, card, UPI, and manual payment options.
+- **Expense & Purchase Logging:** Track and categorize all business expenditures and stock purchase intakes with dates, amounts, and descriptions.
+- **Reporting & Data Export:** Generate detailed financial, sales, and inventory metrics with instant export capabilities in both CSV and formatted PDF formats.
 
 ## Inventory & Barcode Integration (Pro Tier)
-* Barcode scanner integration (supporting Code128 and EAN formats).
-* Real-time stock updates and low-stock indicators.
-* Product categorization and search filtering.
+- **Barcode Operations:** Full hardware barcode scanner integration supporting Code128 and EAN formats, paired with built-in barcode lookup and label printing tools.
+- **Real-Time Stock Intelligence:** Live stock level updates, automated low-stock warnings, and historical audit logs.
+- **Advanced Search & Filtering:** Quick product categorization, filtering, and lookup optimizations.
 
-## PWA & Offline Capabilities:
-- **Offline-first Support:** The application will be designed to function offline, allowing users to continue recording sales and expenses without an active internet connection.
-- **Background Sync:** Data recorded offline will automatically synchronize with the Cloudflare D1 database once an internet connection is re-established.
-- **Conflict Resolution:** A strategy for handling data conflicts during synchronization will be considered (e.g., last-write wins, user prompt).
-  
-## User Interface (UI) Flow Considerations:
-- **Intuitive Navigation:** Clear and consistent navigation across all sections (Inventory, Sales, Expenses, Reports).
-- **Streamlined Sales Process:** A quick and efficient interface for recording sales, minimizing clicks and data entry.
-- **Data Entry Forms:** User-friendly forms with clear labels, input validation, and helpful hints.
-- **Report Visualization:** Clear and readable presentation of reports, potentially with simple charts for trends.
+## PWA & Offline Capabilities
+- **Offline-First Support:** Fully functional offline mode enabling uninterrupted sales and expense recording without an active internet connection.
+- **Background Sync:** Automatic data synchronization with the Cloudflare D1 database once internet connectivity is restored.
+- **Conflict Management:** Built-in strategies for data reconciliation during multi-device synchronization.
+
+## Subscription Management & Access Control (SaaS Core)
+- **Tenant Onboarding & Verification:** Automated store registration and subscription lifecycle checks (`Starter`, `Pro`, `Enterprise`).
+- **Dynamic Feature-Flag Middleware:** Restrict or grant access to specific modules and UI elements based on the tenant's active subscription tier.
+- **Role-Based Access Control (RBAC):** Granular permissions for distinct user roles (e.g., Administrator, Store Manager, Cashier).
+
+## Headless Integration & Webhooks (Enterprise Tier)
+- **Secure Public API Gateway:** Protected API endpoints utilizing token-based authentication for external platforms.
+- **Outbound & Inbound Webhooks:** Real-time event hooks (`order.completed`, `inventory.adjusted`) to sync physical POS data with external e-commerce systems (Shopify, WooCommerce, custom apps).
+- **Multi-Location Routing:** Manage inventory pools and routing across multiple physical business outlets.
+
+## Localized Bangladesh E-Commerce & Logistics Add-ons
+- **Single & Multi-Vendor Framework:** Architecture to support independent local merchant storefronts under a shared ecosystem.
+- **Marketing & SEO Suite:** Built-in campaign landing page builders, reseller program commission tracking, and SEO-friendly blog/brand engines.
+- **Local Payment Gateways:** Native support for popular Bangladeshi mobile financial services and payment aggregators: **bKash**, **Nagad**, **UddoktaPay**, and **AmarPay**, alongside a **Manual Payment Gateway** fallback (e.g., direct bank transfer or Cash on Delivery).
+- **Checkout Intelligence:** Advanced tools including customer advance partial payments, abandoned cart logging, and automated fraud-risk checking.
+- **Courier & Logistics Automation:** Direct integration with **Pathao** and **Stedfast Courier** APIs for one-click parcel booking and live shipment tracking.
+- **Communication Suite:** Automated **Admin Order SMS Notifications** and customer **OTP Verification** via local bulk SMS API gateways.
 - **Responsive Design:** The UI should adapt well to different screen sizes (desktop, tablet).
 
 ## \Subscription Management & Access Control (SaaS Core)
