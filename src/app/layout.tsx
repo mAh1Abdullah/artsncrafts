@@ -15,6 +15,17 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "WAW-POS - Modular Retail Point of Sale & Inventory",
   description: "Offline-first Point of Sale (POS), multi-location inventory, sales ledger, and universal e-commerce bridge.",
+  manifest: "/manifest.json",
+  icons: {
+    icon: "/icon.svg",
+    apple: "/icon.svg",
+  },
+  themeColor: "#0f172a",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "WAW-POS",
+  },
 };
 
 export default function RootLayout({

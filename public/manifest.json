@@ -1,0 +1,60 @@
+{
+  "name": "WAW-POS - Offline-First Point of Sale & Inventory",
+  "short_name": "WAW-POS",
+  "description": "Modular offline-first Point of Sale (POS), real-time inventory management, sales ledger, and multi-channel sync.",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#ffffff",
+  "theme_color": "#0f172a",
+  "categories": ["business", "finance", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "New POS Sale",
+      "short_name": "New Sale",
+      "description": "Open Cashier Checkout Register",
+      "url": "/?tab=pos",
+      "icons": [{ "src": "/icon.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Inventory & Stock",
+      "short_name": "Inventory",
+      "description": "Manage products, barcodes, and stock levels",
+      "url": "/?tab=inventory",
+      "icons": [{ "src": "/icon.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Sales History",
+      "short_name": "Sales",
+      "description": "View sales transactions and receipts",
+      "url": "/?tab=sales",
+      "icons": [{ "src": "/icon.svg", "sizes": "any" }]
+    }
+  ]
+}

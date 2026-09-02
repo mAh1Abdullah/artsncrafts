@@ -15,6 +15,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { EcommerceOrdersLogistics } from "@/components/dashboard/ecommerce-orders-logistics";
+import { ResellerMarketingHub } from "@/components/dashboard/reseller-marketing-hub";
 import {
   AlertTriangle,
   ArrowRightLeft,
@@ -58,7 +60,39 @@ import {
   Sliders,
   Minus,
   X,
+  HardDrive,
+  Database,
+  Smartphone,
+  History,
+  CheckCheck,
+  Loader2,
 } from "lucide-react";
+import {
+  queueOfflineSale,
+  queueOfflineInventory,
+  queueOfflineExpense,
+  cacheProductCatalog,
+  getCachedProductCatalog,
+  getPendingSales,
+  getPendingInventory,
+  getPendingExpenses,
+  getSyncLogsHistory,
+  getAllQueueCounts,
+  removePendingSale,
+  removePendingInventory,
+  removePendingExpense,
+  OfflineSaleRecord,
+  OfflineInventoryMutation,
+  OfflineExpenseRecord,
+  SyncHistoryLog,
+} from "@/lib/offline-db";
+import {
+  registerServiceWorkerAndSync,
+  performFullSync,
+  subscribeToSyncEvents,
+  initAutoSyncLifecycle,
+  SyncResult,
+} from "@/lib/background-sync";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu,
@@ -360,7 +394,7 @@ const INITIAL_SYNC_LOGS: SyncLog[] = [
 
 export default function Component() {
   const [activeTab, setActiveTab] = useState<
-    "pos" | "inventory" | "sales" | "expenses" | "reports" | "ecommerce" | "subscriptions"
+    "pos" | "inventory" | "sales" | "expenses" | "reports" | "ecommerce" | "reseller" | "subscriptions"
   >("pos");
 
   const [tenantName] = useState("Sylhet Artisans & Retail Network");
@@ -401,6 +435,66 @@ export default function Component() {
     reason: "",
   });
 
+  const [receiptPaperSize, setReceiptPaperSize] = useState<"80mm" | "58mm">("80mm");
+
+  // PWA Background Sync & Offline Storage States
+  const [isOfflineSyncModalOpen, setIsOfflineSyncModalOpen] = useState(false);
+  const [queueCounts, setQueueCounts] = useState({
+    salesCount: 0,
+    inventoryCount: 0,
+    expensesCount: 0,
+    totalCount: 0,
+  });
+  const [pendingSalesList, setPendingSalesList] = useState<OfflineSaleRecord[]>([]);
+  const [pendingInventoryList, setPendingInventoryList] = useState<OfflineInventoryMutation[]>([]);
+  const [pendingExpensesList, setPendingExpensesList] = useState<OfflineExpenseRecord[]>([]);
+  const [offlineSyncHistory, setOfflineSyncHistory] = useState<SyncHistoryLog[]>([]);
+  const [isSyncEngineRunning, setIsSyncEngineRunning] = useState(false);
+  const [pwaInstallPrompt, setPwaInstallPrompt] = useState<any>(null);
+  const [isPwaInstalled, setIsPwaInstalled] = useState(false);
+  const [offlineModalTab, setOfflineModalTab] = useState<"queue" | "history" | "pwa">("queue");
+
+  const loadOfflineQueueData = async () => {
+    try {
+      const [sales, inv, exp, logs, counts] = await Promise.all([
+        getPendingSales(),
+        getPendingInventory(),
+        getPendingExpenses(),
+        getSyncLogsHistory(),
+        getAllQueueCounts(),
+      ]);
+      setPendingSalesList(sales);
+      setPendingInventoryList(inv);
+      setPendingExpensesList(exp);
+      setOfflineSyncHistory(logs);
+      setQueueCounts(counts);
+      setOfflineQueue(counts.totalCount);
+    } catch (e) {
+      console.error("Failed loading offline queue details", e);
+    }
+  };
+
+  const handleTriggerFullSync = async () => {
+    setIsSyncEngineRunning(true);
+    try {
+      const result = await performFullSync("manual");
+      await loadOfflineQueueData();
+      if (result.success) {
+        if (result.totalSynced > 0) {
+          alert(`Synchronization complete! Pushed ${result.totalSynced} transaction(s) to Cloud D1 Database.`);
+        } else {
+          alert("All offline queues are up-to-date. Database is fully synchronized.");
+        }
+      } else {
+        alert(`Sync warning: ${result.errors.join(", ")}`);
+      }
+    } catch (err) {
+      alert(`Sync failed: ${(err as Error).message}`);
+    } finally {
+      setIsSyncEngineRunning(false);
+    }
+  };
+
   // Sync role and tier into cookies for backend middleware & API routes
   useEffect(() => {
     if (typeof document !== "undefined") {
@@ -408,6 +502,65 @@ export default function Component() {
       document.cookie = `waw_tier=${subscriptionTier}; path=/; max-age=86400`;
     }
   }, [userRole, subscriptionTier]);
+
+  // Synchronize network online/offline listeners, IndexedDB background sync, and PWA install prompt
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const handleOnline = () => {
+        setIsOffline(false);
+      };
+      const handleOffline = () => {
+        setIsOffline(true);
+      };
+      window.addEventListener("online", handleOnline);
+      window.addEventListener("offline", handleOffline);
+
+      // Cache products in IndexedDB catalog cache
+      if (products.length > 0) {
+        cacheProductCatalog(products);
+      }
+
+      // Subscribe to Background Sync state changes & queue counters
+      const unsubscribeSync = subscribeToSyncEvents(({ isSyncing, queueCounts: counts }) => {
+        setIsSyncEngineRunning(isSyncing);
+        setQueueCounts(counts);
+        setOfflineQueue(counts.totalCount);
+      });
+
+      // Start background sync listeners & network monitor
+      const cleanupAutoSync = initAutoSyncLifecycle();
+
+      // Listen for custom sync completed events
+      const handleSyncDone = () => {
+        loadOfflineQueueData();
+      };
+      window.addEventListener("waw-pos-sync-completed", handleSyncDone);
+
+      // Capture PWA installation prompt
+      const handleBeforeInstall = (e: Event) => {
+        e.preventDefault();
+        setPwaInstallPrompt(e);
+      };
+      const handleAppInstalled = () => {
+        setIsPwaInstalled(true);
+        setPwaInstallPrompt(null);
+      };
+      window.addEventListener("beforeinstallprompt", handleBeforeInstall);
+      window.addEventListener("appinstalled", handleAppInstalled);
+
+      loadOfflineQueueData();
+
+      return () => {
+        window.removeEventListener("online", handleOnline);
+        window.removeEventListener("offline", handleOffline);
+        unsubscribeSync();
+        cleanupAutoSync();
+        window.removeEventListener("waw-pos-sync-completed", handleSyncDone);
+        window.removeEventListener("beforeinstallprompt", handleBeforeInstall);
+        window.removeEventListener("appinstalled", handleAppInstalled);
+      };
+    }
+  }, []);
 
   // Synchronize active cashier name when user role changes
   useEffect(() => {
@@ -660,22 +813,68 @@ export default function Component() {
     setSalesList((prev) => [newSale, ...prev]);
     setLastInvoice(newSale);
 
+    // Save sale to durable IndexedDB offline store & update cached products
+    const offlinePayload = {
+      id: newSale.id,
+      invoiceNumber: newSale.invoiceNo,
+      storeId: selectedStore,
+      tenantId: "tenant-waw-sylhet-001",
+      cashierName: activeCashier,
+      cashierRole: userRole,
+      paymentMethod,
+      items: cart.map((i) => ({
+        productId: i.product.id,
+        productName: i.product.name,
+        sku: i.product.sku,
+        quantity: i.quantity,
+        unitCost: i.product.unitCost,
+        unitPrice: i.product.price,
+        totalPrice: i.product.price * i.quantity,
+      })),
+      subtotal: cartSubtotal,
+      discountAmount,
+      taxAmount: cartTax,
+      totalAmount: cartTotal,
+      tenderedAmount: Number(tenderedAmount) || cartTotal,
+      changeDue: Number(tenderedAmount) > cartTotal ? Number(tenderedAmount) - cartTotal : 0,
+      customerName: customerName.trim() || undefined,
+      customerPhone: customerPhone.trim() || undefined,
+      createdAt: new Date().toISOString(),
+    };
+
+    cacheProductCatalog(updatedProducts);
+
     if (isOffline) {
-      setOfflineQueue((prev) => prev + 1);
-    } else if (enabledModules.ecommerce_bridge) {
-      const newLog: SyncLog = {
-        id: `log-${Date.now()}`,
-        timestamp: "Just now",
-        platform: "Shopify",
-        eventType: "inventory.synced",
-        details: `POS Sale #${invoiceNumber} (-${cart.reduce((s, i) => s + i.quantity, 0)} items) broadcasted to e-commerce bridge`,
-        status: "success",
-      };
-      setSyncLogs((prev) => [newLog, ...prev]);
+      queueOfflineSale(offlinePayload).then(() => {
+        loadOfflineQueueData();
+      });
+    } else {
+      // If online, immediately try to sync or queue if network blips
+      queueOfflineSale(offlinePayload).then(() => {
+        performFullSync("automatic_reconnect").then(() => {
+          loadOfflineQueueData();
+        });
+      });
+
+      if (enabledModules.ecommerce_bridge) {
+        const newLog: SyncLog = {
+          id: `log-${Date.now()}`,
+          timestamp: "Just now",
+          platform: "Shopify",
+          eventType: "inventory.synced",
+          details: `POS Sale #${invoiceNumber} (-${cart.reduce((s, i) => s + i.quantity, 0)} items) broadcasted to e-commerce bridge`,
+          status: "success",
+        };
+        setSyncLogs((prev) => [newLog, ...prev]);
+      }
     }
 
     setIsCheckoutOpen(false);
     clearCart();
+  };
+
+  const syncQueuedOfflineSales = () => {
+    handleTriggerFullSync();
   };
 
   const handleStockTransfer = (e: React.FormEvent) => {
@@ -909,24 +1108,26 @@ export default function Component() {
     <div className="flex flex-col min-h-screen bg-slate-50 text-slate-900 font-sans antialiased">
       {/* Offline Status Banner */}
       {isOffline && (
-        <div className="bg-amber-600 text-white text-xs px-4 py-1.5 flex items-center justify-between font-medium">
+        <div className="bg-gradient-to-r from-amber-600 to-amber-700 text-white text-xs px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 font-medium shadow-xs">
           <div className="flex items-center space-x-2">
-            <WifiOff className="h-4 w-4" />
+            <WifiOff className="h-4 w-4 animate-pulse text-amber-200" />
             <span>
-              <strong>OFFLINE MODE ACTIVE:</strong> All register transactions are securely queued in local storage.
+              <strong>OFFLINE REGISTER ACTIVE:</strong> Storing transactions in local IndexedDB. Background sync will automatically push all sales and stock mutations to Cloud D1 upon reconnection.
             </span>
           </div>
-          <div className="flex items-center space-x-3">
-            <Badge className="bg-amber-800 text-white">{offlineQueue} offline actions pending sync</Badge>
+          <div className="flex items-center space-x-2">
+            <Badge className="bg-amber-900/80 text-amber-100 border border-amber-500 font-mono text-[11px]">
+              {queueCounts.salesCount} Sales · {queueCounts.inventoryCount} Stock · {queueCounts.expensesCount} Exp
+            </Badge>
             <button
               onClick={() => {
-                setIsOffline(false);
-                setOfflineQueue(0);
-                alert("Online connection restored! Synchronized queued sales with Cloud database.");
+                loadOfflineQueueData();
+                setIsOfflineSyncModalOpen(true);
               }}
-              className="underline hover:text-amber-100 text-xs"
+              className="bg-white/20 hover:bg-white/30 text-white px-2.5 py-1 rounded text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs"
             >
-              Simulate Online Reconnect
+              <HardDrive className="h-3.5 w-3.5" />
+              <span>Queue & Sync Manager</span>
             </button>
           </div>
         </div>
@@ -1054,10 +1255,22 @@ export default function Component() {
               }`}
             >
               <Globe className="h-3.5 w-3.5" />
-              <span>E-Commerce Bridge</span>
+              <span>E-Commerce & Logistics</span>
               {!canPerform("ecommerce:sync") && (
                 <Lock className="h-3 w-3 text-amber-500 ml-0.5" />
               )}
+            </button>
+            <button
+              id="nav-reseller"
+              onClick={() => setActiveTab("reseller")}
+              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                activeTab === "reseller"
+                  ? "bg-white text-slate-900 shadow-xs font-semibold"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <Users className="h-3.5 w-3.5" />
+              <span>Resellers & Growth</span>
             </button>
             <button
               id="nav-subscriptions"
@@ -1075,6 +1288,51 @@ export default function Component() {
 
           {/* User Role & Quick Context Switchers */}
           <div className="flex items-center space-x-2">
+            {/* PWA Install Button */}
+            {pwaInstallPrompt && !isPwaInstalled && (
+              <button
+                onClick={async () => {
+                  if (pwaInstallPrompt) {
+                    pwaInstallPrompt.prompt();
+                    const { outcome } = await pwaInstallPrompt.userChoice;
+                    if (outcome === "accepted") {
+                      setIsPwaInstalled(true);
+                      setPwaInstallPrompt(null);
+                    }
+                  }
+                }}
+                className="hidden md:flex items-center space-x-1 text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-300 px-2.5 py-1.5 rounded-lg font-semibold transition-all shadow-xs"
+                title="Install WAW-POS Desktop / Tablet App"
+              >
+                <Smartphone className="h-3.5 w-3.5" />
+                <span>Install PWA</span>
+              </button>
+            )}
+
+            {/* Offline Storage & Background Sync Drawer Button */}
+            <button
+              onClick={() => {
+                loadOfflineQueueData();
+                setIsOfflineSyncModalOpen(true);
+              }}
+              title="PWA Offline Storage & Background Sync Manager"
+              className={`flex items-center space-x-1.5 text-xs px-2.5 py-1.5 rounded-lg border font-medium transition-all ${
+                queueCounts.totalCount > 0
+                  ? "bg-amber-50 hover:bg-amber-100 text-amber-900 border-amber-300"
+                  : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200"
+              }`}
+            >
+              <Database className={`h-3.5 w-3.5 ${isSyncEngineRunning ? "animate-spin text-indigo-600" : queueCounts.totalCount > 0 ? "text-amber-600" : "text-emerald-600"}`} />
+              <span className="hidden sm:inline font-mono text-[11px]">
+                {queueCounts.totalCount > 0 ? `${queueCounts.totalCount} Queued` : "Sync Active"}
+              </span>
+              {queueCounts.totalCount > 0 && (
+                <span className="inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-bold leading-none text-white bg-amber-600 rounded-full font-mono">
+                  {queueCounts.totalCount}
+                </span>
+              )}
+            </button>
+
             {/* User Role Switcher */}
             <div className="flex items-center space-x-1 text-xs text-slate-700 bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-200">
               <ShieldCheck className="h-3.5 w-3.5 text-indigo-600" />
@@ -2360,156 +2618,170 @@ export default function Component() {
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 6: E-COMMERCE & WEBHOOK BRIDGE */}
+        {/* TAB 6: E-COMMERCE, BD GATEWAYS & LOGISTICS */}
         {/* ========================================================================= */}
         {activeTab === "ecommerce" && (
           <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <h2 className="text-xl font-bold tracking-tight">Universal E-Commerce & Webhook Bridge</h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Bi-directional inventory sync with Shopify, WooCommerce, and Custom Store Webhooks.
-                </p>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Button
-                  onClick={simulateExternalOrder}
-                  disabled={isSyncing}
-                  variant="outline"
-                  className="h-9 text-xs bg-white"
-                >
-                  <ShoppingBag className="h-3.5 w-3.5 mr-1 text-indigo-600" />
-                  Simulate Inbound Order
-                </Button>
-                <Button
-                  onClick={triggerManualSync}
-                  disabled={isSyncing}
-                  className="h-9 text-xs bg-indigo-600 hover:bg-indigo-700 text-white"
-                >
-                  <RefreshCw className={`h-3.5 w-3.5 mr-1 ${isSyncing ? "animate-spin" : ""}`} />
-                  Sync Outbound Catalog
-                </Button>
-              </div>
-            </div>
+            <EcommerceOrdersLogistics
+              subscriptionTier={subscriptionTier}
+              canManageEcommerce={canPerform("ecommerce:sync")}
+            />
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Card className="border-indigo-100 shadow-xs">
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-sm font-semibold">Shopify Store</CardTitle>
-                    <span className="flex h-2 w-2 rounded-full bg-emerald-500" />
+            <div className="pt-6 border-t border-slate-200 space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-base font-bold tracking-tight text-slate-900">Universal Webhook & Cloud Sync Channels</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Bi-directional inventory sync with Shopify, WooCommerce, and Custom Store Webhooks.
+                  </p>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Button
+                    onClick={simulateExternalOrder}
+                    disabled={isSyncing}
+                    variant="outline"
+                    className="h-8 text-xs bg-white"
+                  >
+                    <ShoppingBag className="h-3.5 w-3.5 mr-1 text-indigo-600" />
+                    Simulate Inbound Order
+                  </Button>
+                  <Button
+                    onClick={triggerManualSync}
+                    disabled={isSyncing}
+                    className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white"
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 mr-1 ${isSyncing ? "animate-spin" : ""}`} />
+                    Sync Outbound Catalog
+                  </Button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card className="border-indigo-100 shadow-xs">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-sm font-semibold">Shopify Store</CardTitle>
+                      <span className="flex h-2 w-2 rounded-full bg-emerald-500" />
+                    </div>
+                    <CardDescription className="text-xs">
+                      Connected: sylhet-crafts.myshopify.com
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="text-xs text-slate-600 space-y-2">
+                    <div className="flex justify-between">
+                      <span>Active Sync:</span>
+                      <span className="font-semibold text-emerald-600">Bi-directional Live</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Webhook Endpoint:</span>
+                      <code className="text-[10px] bg-slate-100 px-1 py-0.5 rounded font-mono">
+                        /api/v1/orders/webhook
+                      </code>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-slate-200 shadow-xs">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-sm font-semibold">WooCommerce Store</CardTitle>
+                      <span className="flex h-2 w-2 rounded-full bg-emerald-500" />
+                    </div>
+                    <CardDescription className="text-xs">Connected: store.sylhetartisans.com</CardDescription>
+                  </CardHeader>
+                  <CardContent className="text-xs text-slate-600 space-y-2">
+                    <div className="flex justify-between">
+                      <span>Active Sync:</span>
+                      <span className="font-semibold text-emerald-600">Inventory Deltas</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>API Bridge:</span>
+                      <code className="text-[10px] bg-slate-100 px-1 py-0.5 rounded font-mono">
+                        /api/v1/inventory/sync
+                      </code>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-slate-200 shadow-xs">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-sm font-semibold">WAW Marketplace API</CardTitle>
+                      <span className="flex h-2 w-2 rounded-full bg-slate-300" />
+                    </div>
+                    <CardDescription className="text-xs">National Artisan Network (Sylhet Pilot)</CardDescription>
+                  </CardHeader>
+                  <CardContent className="text-xs text-slate-600 space-y-2">
+                    <div className="flex justify-between">
+                      <span>Access Tier:</span>
+                      <span className="font-semibold text-slate-700">Ready to Connect</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Auth Type:</span>
+                      <span className="font-mono text-[10px]">Bearer API Key</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {apiResponseTest && (
+                <div className="bg-slate-900 text-slate-100 p-4 rounded-xl font-mono text-xs space-y-1">
+                  <div className="text-slate-400 flex items-center justify-between pb-1 border-b border-slate-800">
+                    <span>API Debug Output Console</span>
+                    <button
+                      onClick={() => setApiResponseTest(null)}
+                      className="text-slate-500 hover:text-slate-300"
+                    >
+                      Clear
+                    </button>
                   </div>
+                  <pre className="overflow-x-auto pt-2">{apiResponseTest}</pre>
+                </div>
+              )}
+
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-semibold">Recent Sync Events & Webhook Logs</CardTitle>
                   <CardDescription className="text-xs">
-                    Connected: sylhet-crafts.myshopify.com
+                    Event stream of POS sales and external e-commerce inventory sync triggers.
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="text-xs text-slate-600 space-y-2">
-                  <div className="flex justify-between">
-                    <span>Active Sync:</span>
-                    <span className="font-semibold text-emerald-600">Bi-directional Live</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Webhook Endpoint:</span>
-                    <code className="text-[10px] bg-slate-100 px-1 py-0.5 rounded font-mono">
-                      /api/v1/orders/webhook
-                    </code>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="border-slate-200 shadow-xs">
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-sm font-semibold">WooCommerce Store</CardTitle>
-                    <span className="flex h-2 w-2 rounded-full bg-emerald-500" />
-                  </div>
-                  <CardDescription className="text-xs">Connected: store.sylhetartisans.com</CardDescription>
-                </CardHeader>
-                <CardContent className="text-xs text-slate-600 space-y-2">
-                  <div className="flex justify-between">
-                    <span>Active Sync:</span>
-                    <span className="font-semibold text-emerald-600">Inventory Deltas</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>API Bridge:</span>
-                    <code className="text-[10px] bg-slate-100 px-1 py-0.5 rounded font-mono">
-                      /api/v1/inventory/sync
-                    </code>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="border-slate-200 shadow-xs">
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-sm font-semibold">WAW Marketplace API</CardTitle>
-                    <span className="flex h-2 w-2 rounded-full bg-slate-300" />
-                  </div>
-                  <CardDescription className="text-xs">National Artisan Network (Sylhet Pilot)</CardDescription>
-                </CardHeader>
-                <CardContent className="text-xs text-slate-600 space-y-2">
-                  <div className="flex justify-between">
-                    <span>Access Tier:</span>
-                    <span className="font-semibold text-slate-700">Ready to Connect</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Auth Type:</span>
-                    <span className="font-mono text-[10px]">Bearer API Key</span>
+                <CardContent className="p-0">
+                  <div className="divide-y divide-slate-100">
+                    {syncLogs.map((log) => (
+                      <div key={log.id} className="p-3.5 flex items-center justify-between text-xs">
+                        <div className="flex items-center space-x-3">
+                          <div className="flex h-7 w-7 rounded-full bg-emerald-50 text-emerald-600 items-center justify-center">
+                            <CheckCircle2 className="h-4 w-4" />
+                          </div>
+                          <div>
+                            <p className="font-semibold text-slate-900">{log.details}</p>
+                            <div className="text-[11px] text-slate-500 flex items-center space-x-2 mt-0.5">
+                              <span className="font-mono font-medium text-indigo-600">{log.platform}</span>
+                              <span>•</span>
+                              <span className="font-mono text-slate-400">{log.eventType}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <span className="text-[11px] text-slate-400 whitespace-nowrap">{log.timestamp}</span>
+                      </div>
+                    ))}
                   </div>
                 </CardContent>
               </Card>
             </div>
-
-            {apiResponseTest && (
-              <div className="bg-slate-900 text-slate-100 p-4 rounded-xl font-mono text-xs space-y-1">
-                <div className="text-slate-400 flex items-center justify-between pb-1 border-b border-slate-800">
-                  <span>API Debug Output Console</span>
-                  <button
-                    onClick={() => setApiResponseTest(null)}
-                    className="text-slate-500 hover:text-slate-300"
-                  >
-                    Clear
-                  </button>
-                </div>
-                <pre className="overflow-x-auto pt-2">{apiResponseTest}</pre>
-              </div>
-            )}
-
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-semibold">Recent Sync Events & Webhook Logs</CardTitle>
-                <CardDescription className="text-xs">
-                  Event stream of POS sales and external e-commerce inventory sync triggers.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="divide-y divide-slate-100">
-                  {syncLogs.map((log) => (
-                    <div key={log.id} className="p-3.5 flex items-center justify-between text-xs">
-                      <div className="flex items-center space-x-3">
-                        <div className="flex h-7 w-7 rounded-full bg-emerald-50 text-emerald-600 items-center justify-center">
-                          <CheckCircle2 className="h-4 w-4" />
-                        </div>
-                        <div>
-                          <p className="font-semibold text-slate-900">{log.details}</p>
-                          <div className="text-[11px] text-slate-500 flex items-center space-x-2 mt-0.5">
-                            <span className="font-mono font-medium text-indigo-600">{log.platform}</span>
-                            <span>•</span>
-                            <span className="font-mono text-slate-400">{log.eventType}</span>
-                          </div>
-                        </div>
-                      </div>
-                      <span className="text-[11px] text-slate-400 whitespace-nowrap">{log.timestamp}</span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
           </div>
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 7: MODULAR PLUGINS & SAAS SETTINGS */}
+        {/* TAB 7: RESELLERS & GROWTH HUB */}
+        {/* ========================================================================= */}
+        {activeTab === "reseller" && (
+          <ResellerMarketingHub />
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB 8: MODULAR PLUGINS & SAAS SETTINGS */}
         {/* ========================================================================= */}
         {activeTab === "subscriptions" && (
           <div className="space-y-6">
@@ -2807,27 +3079,54 @@ export default function Component() {
               <div className="text-3xl font-bold font-mono text-slate-900">${cartTotal.toFixed(2)}</div>
             </div>
 
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label htmlFor="checkout-cust-name" className="text-xs font-semibold">
+                  Customer Name
+                </Label>
+                <Input
+                  id="checkout-cust-name"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  placeholder="Optional Name"
+                  className="mt-1 text-xs"
+                />
+              </div>
+              <div>
+                <Label htmlFor="checkout-cust-phone" className="text-xs font-semibold">
+                  Phone (+880)
+                </Label>
+                <Input
+                  id="checkout-cust-phone"
+                  value={customerPhone}
+                  onChange={(e) => setCustomerPhone(e.target.value)}
+                  placeholder="+880 17XX-XXXXXX"
+                  className="mt-1 font-mono text-xs"
+                />
+              </div>
+            </div>
+
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">Payment Method</Label>
-              <div className="grid grid-cols-2 gap-2">
+              <Label className="text-xs font-semibold">Payment Channel & MFS</Label>
+              <div className="grid grid-cols-3 gap-2">
                 <button
                   type="button"
                   onClick={() => setPaymentMethod("cash")}
-                  className={`p-2.5 rounded-lg border text-xs font-semibold flex items-center justify-center space-x-2 transition-all ${
+                  className={`p-2 rounded-lg border text-xs font-semibold flex flex-col items-center justify-center space-y-1 transition-all ${
                     paymentMethod === "cash"
-                      ? "bg-slate-900 text-white border-slate-900"
+                      ? "bg-slate-900 text-white border-slate-900 shadow-2xs"
                       : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
                   }`}
                 >
                   <DollarSign className="h-4 w-4" />
-                  <span>Cash Tender</span>
+                  <span>Cash Drawer</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setPaymentMethod("card")}
-                  className={`p-2.5 rounded-lg border text-xs font-semibold flex items-center justify-center space-x-2 transition-all ${
+                  className={`p-2 rounded-lg border text-xs font-semibold flex flex-col items-center justify-center space-y-1 transition-all ${
                     paymentMethod === "card"
-                      ? "bg-slate-900 text-white border-slate-900"
+                      ? "bg-slate-900 text-white border-slate-900 shadow-2xs"
                       : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
                   }`}
                 >
@@ -2837,35 +3136,54 @@ export default function Component() {
                 <button
                   type="button"
                   onClick={() => setPaymentMethod("mobile_banking")}
-                  className={`p-2.5 rounded-lg border text-xs font-semibold flex items-center justify-center space-x-2 transition-all ${
+                  className={`p-2 rounded-lg border text-xs font-semibold flex flex-col items-center justify-center space-y-1 transition-all ${
                     paymentMethod === "mobile_banking"
-                      ? "bg-slate-900 text-white border-slate-900"
+                      ? "bg-slate-900 text-white border-slate-900 shadow-2xs"
                       : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
                   }`}
                 >
-                  <Zap className="h-4 w-4" />
+                  <Zap className="h-4 w-4 text-pink-500" />
                   <span>bKash / Nagad</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setPaymentMethod("upi")}
-                  className={`p-2.5 rounded-lg border text-xs font-semibold flex items-center justify-center space-x-2 transition-all ${
+                  className={`p-2 rounded-lg border text-xs font-semibold flex flex-col items-center justify-center space-y-1 transition-all ${
                     paymentMethod === "upi"
-                      ? "bg-slate-900 text-white border-slate-900"
+                      ? "bg-slate-900 text-white border-slate-900 shadow-2xs"
                       : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
                   }`}
                 >
-                  <Barcode className="h-4 w-4" />
-                  <span>UPI / QR Scan</span>
+                  <Barcode className="h-4 w-4 text-indigo-500" />
+                  <span>AmarPay / QR</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod("cash")}
+                  className="p-2 rounded-lg border text-xs font-semibold flex flex-col items-center justify-center space-y-1 bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                >
+                  <ShoppingBag className="h-4 w-4 text-blue-500" />
+                  <span>UddoktaPay</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod("cash")}
+                  className="p-2 rounded-lg border text-xs font-semibold flex flex-col items-center justify-center space-y-1 bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                >
+                  <Clock className="h-4 w-4 text-amber-500" />
+                  <span>COD / Advance</span>
                 </button>
               </div>
             </div>
 
             {paymentMethod === "cash" && (
-              <div className="space-y-1.5">
-                <Label htmlFor="tendered" className="text-xs font-semibold">
-                  Cash Received ($)
-                </Label>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <Label htmlFor="tendered" className="text-xs font-semibold">
+                    Cash Received ($)
+                  </Label>
+                  <span className="text-[11px] text-slate-500 font-mono">Due: ${cartTotal.toFixed(2)}</span>
+                </div>
                 <Input
                   id="tendered"
                   type="number"
@@ -2874,10 +3192,38 @@ export default function Component() {
                   onChange={(e) => setTenderedAmount(e.target.value)}
                   className="font-mono text-sm"
                 />
+
+                {/* Quick cash denomination chips */}
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setTenderedAmount(cartTotal.toFixed(2))}
+                    className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-800 text-[11px] font-mono font-semibold"
+                  >
+                    Exact (${cartTotal.toFixed(2)})
+                  </button>
+                  {[20, 50, 100, 200, 500, 1000].map((val) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setTenderedAmount(val.toString())}
+                      className={`px-2 py-0.5 rounded text-[11px] font-mono font-medium ${
+                        Number(tenderedAmount) === val
+                          ? "bg-slate-900 text-white"
+                          : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+                      }`}
+                    >
+                      ${val}
+                    </button>
+                  ))}
+                </div>
+
                 {Number(tenderedAmount) >= cartTotal && (
-                  <div className="text-xs text-emerald-600 font-semibold pt-1 flex justify-between">
+                  <div className="text-xs text-emerald-600 font-semibold pt-1 flex justify-between bg-emerald-50 p-2 rounded-lg border border-emerald-100">
                     <span>Change Due to Customer:</span>
-                    <span className="font-mono font-bold">${(Number(tenderedAmount) - cartTotal).toFixed(2)}</span>
+                    <span className="font-mono font-bold text-sm text-emerald-700">
+                      ${(Number(tenderedAmount) - cartTotal).toFixed(2)}
+                    </span>
                   </div>
                 )}
               </div>
@@ -2907,65 +3253,127 @@ export default function Component() {
             setSelectedSaleDetail(null);
           }}
         >
-          <DialogContent className="sm:max-w-[380px] font-mono text-xs">
+          <DialogContent
+            className={`${
+              receiptPaperSize === "58mm" ? "sm:max-w-[320px]" : "sm:max-w-[400px]"
+            } font-mono text-xs p-6 bg-white border border-slate-300 shadow-2xl rounded-lg`}
+          >
             {(() => {
               const invoice = lastInvoice || selectedSaleDetail!;
               return (
-                <div>
-                  <DialogHeader className="text-center">
-                    <DialogTitle className="text-sm font-bold tracking-tight">SALES RECEIPT</DialogTitle>
-                    <DialogDescription className="text-[11px] text-slate-500">{tenantName}</DialogDescription>
-                  </DialogHeader>
-
-                  <div className="border-y border-dashed border-slate-300 py-3 my-2 space-y-2">
-                    <div className="flex justify-between text-slate-500 text-[11px]">
-                      <span>Invoice: {invoice.invoiceNo}</span>
-                      <span>{invoice.date}</span>
-                    </div>
-                    <div className="flex justify-between text-slate-500 text-[11px]">
-                      <span>Store: {invoice.storeId}</span>
-                      <span className="capitalize">Method: {invoice.paymentMethod}</span>
-                    </div>
-                    {invoice.customerName && (
-                      <div className="text-[11px] text-slate-600">
-                        Customer: {invoice.customerName} {invoice.customerPhone && `(${invoice.customerPhone})`}
-                      </div>
-                    )}
-
-                    <div className="pt-2 border-t border-slate-200 space-y-1">
-                      {invoice.items.map((item) => (
-                        <div key={item.product.id} className="flex justify-between">
-                          <span className="truncate pr-2">
-                            {item.product.name} × {item.quantity}
-                          </span>
-                          <span>${(item.product.price * item.quantity).toFixed(2)}</span>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="pt-2 border-t border-slate-200 space-y-1 text-slate-600">
-                      <div className="flex justify-between">
-                        <span>Subtotal:</span>
-                        <span>${invoice.subtotal.toFixed(2)}</span>
-                      </div>
-                      {invoice.discountAmount > 0 && (
-                        <div className="flex justify-between text-emerald-600">
-                          <span>Discount:</span>
-                          <span>-${invoice.discountAmount.toFixed(2)}</span>
-                        </div>
-                      )}
-                      <div className="flex justify-between">
-                        <span>Tax:</span>
-                        <span>${invoice.taxAmount.toFixed(2)}</span>
-                      </div>
-                      <div className="flex justify-between font-bold text-slate-900 text-sm pt-1 border-t border-slate-300">
-                        <span>TOTAL PAID:</span>
-                        <span>${invoice.totalAmount.toFixed(2)}</span>
-                      </div>
+                <div className="space-y-3">
+                  {/* Paper Width & Format Controls */}
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-200 print:hidden text-[11px]">
+                    <span className="text-slate-500 font-sans font-medium">Thermal Size:</span>
+                    <div className="flex gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setReceiptPaperSize("80mm")}
+                        className={`px-2 py-0.5 rounded text-[10px] font-sans font-bold ${
+                          receiptPaperSize === "80mm" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"
+                        }`}
+                      >
+                        80mm Standard
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setReceiptPaperSize("58mm")}
+                        className={`px-2 py-0.5 rounded text-[10px] font-sans font-bold ${
+                          receiptPaperSize === "58mm" ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600"
+                        }`}
+                      >
+                        58mm Compact
+                      </button>
                     </div>
                   </div>
 
-                  <DialogFooter className="flex justify-between items-center sm:justify-between pt-2">
+                  {/* Printable Thermal Receipt Card */}
+                  <div className="text-center space-y-1">
+                    <h3 className="text-base font-black tracking-tight text-slate-900 uppercase">
+                      {tenantName}
+                    </h3>
+                    <p className="text-[10px] text-slate-500">Zindabazar Commercial Area, Sylhet - 3100</p>
+                    <p className="text-[10px] text-slate-500 font-mono">BIN / Mushak: 002918471-0101</p>
+                    <p className="text-[10px] text-slate-500">Tel: +880 1711-000000 • www.waw-pos.bd</p>
+                    <div className="inline-block px-2 py-0.5 bg-slate-100 rounded text-[10px] font-bold uppercase tracking-wider text-slate-700 mt-1">
+                      Tax Invoice / Customer Copy
+                    </div>
+                  </div>
+
+                  <div className="border-y border-dashed border-slate-300 py-2.5 space-y-1.5 text-[11px]">
+                    <div className="flex justify-between text-slate-600">
+                      <span>Invoice #: <strong className="text-slate-900">{invoice.invoiceNo}</strong></span>
+                      <span>{invoice.date}</span>
+                    </div>
+                    <div className="flex justify-between text-slate-600">
+                      <span>Outlet: <strong>{invoice.storeId}</strong></span>
+                      <span className="capitalize">Pay: <strong className="text-slate-900">{invoice.paymentMethod}</strong></span>
+                    </div>
+                    <div className="flex justify-between text-slate-600">
+                      <span>Cashier: <strong>{invoice.cashierName.split(" ")[0]}</strong></span>
+                      <span className="text-emerald-700 font-bold uppercase">PAID</span>
+                    </div>
+                    {invoice.customerName && (
+                      <div className="text-slate-700 pt-1 border-t border-dotted border-slate-200">
+                        Customer: <strong>{invoice.customerName}</strong> {invoice.customerPhone && `(${invoice.customerPhone})`}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Line items */}
+                  <div className="space-y-1 text-[11px]">
+                    <div className="flex justify-between font-bold text-slate-700 border-b border-slate-200 pb-1 text-[10px] uppercase">
+                      <span>Item / Description</span>
+                      <span>Amount</span>
+                    </div>
+                    {invoice.items.map((item) => (
+                      <div key={item.product.id} className="flex justify-between py-0.5">
+                        <div className="truncate pr-2">
+                          <span className="font-semibold text-slate-900">{item.product.name}</span>
+                          <span className="text-slate-500 text-[10px] block">
+                            {item.quantity} × ${item.product.price.toFixed(2)}
+                          </span>
+                        </div>
+                        <span className="font-mono text-slate-900 font-medium">
+                          ${(item.product.price * item.quantity).toFixed(2)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Financial summary breakdown */}
+                  <div className="pt-2 border-t border-dashed border-slate-300 space-y-1 text-[11px] text-slate-600">
+                    <div className="flex justify-between">
+                      <span>Subtotal:</span>
+                      <span className="font-mono">${invoice.subtotal.toFixed(2)}</span>
+                    </div>
+                    {invoice.discountAmount > 0 && (
+                      <div className="flex justify-between text-emerald-600 font-medium">
+                        <span>Discount:</span>
+                        <span className="font-mono">-${invoice.discountAmount.toFixed(2)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between">
+                      <span>VAT / Govt Tax (5%):</span>
+                      <span className="font-mono">${invoice.taxAmount.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between font-black text-slate-900 text-sm pt-1 border-t-2 border-slate-900">
+                      <span>TOTAL PAID:</span>
+                      <span className="font-mono">${invoice.totalAmount.toFixed(2)}</span>
+                    </div>
+                  </div>
+
+                  {/* Digital verification token & barcode mock */}
+                  <div className="text-center pt-2 border-t border-dotted border-slate-200 space-y-1 text-[10px] text-slate-400">
+                    <div className="font-mono tracking-widest text-[9px] text-slate-500">
+                      ||| | ||||| || |||| ||| |||| | |||||
+                    </div>
+                    <p className="font-mono text-[9px] text-slate-400">AUTH: {invoice.invoiceNo}-NBR-BD</p>
+                    <p className="text-slate-500 pt-1 font-sans">Thank you for shopping with us!</p>
+                    <p className="text-[9px] text-slate-400 font-sans">Goods once sold can be exchanged within 7 days with this invoice.</p>
+                  </div>
+
+                  <DialogFooter className="flex justify-between items-center sm:justify-between pt-2 border-t border-slate-100 print:hidden">
                     <Button
                       variant="ghost"
                       onClick={() => {
@@ -2980,10 +3388,10 @@ export default function Component() {
                       onClick={() => {
                         window.print();
                       }}
-                      className="text-xs bg-slate-900 text-white"
+                      className="text-xs bg-slate-900 hover:bg-slate-800 text-white font-semibold"
                     >
-                      <Printer className="h-3.5 w-3.5 mr-1" />
-                      Print Thermal Receipt
+                      <Printer className="h-3.5 w-3.5 mr-1.5" />
+                      Print Receipt ({receiptPaperSize})
                     </Button>
                   </DialogFooter>
                 </div>
@@ -3800,6 +4208,406 @@ export default function Component() {
               className="bg-rose-600 hover:bg-rose-700"
             >
               Confirm Batch Delete ({selectedInventoryIds.size})
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ========================================================================= */}
+      {/* MODAL: PWA OFFLINE STORAGE & BACKGROUND SYNC MANAGER */}
+      {/* ========================================================================= */}
+      <Dialog open={isOfflineSyncModalOpen} onOpenChange={setIsOfflineSyncModalOpen}>
+        <DialogContent className="sm:max-w-[700px] max-h-[85vh] flex flex-col p-0 overflow-hidden">
+          <DialogHeader className="px-6 pt-5 pb-3 border-b bg-slate-50/80">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-indigo-100 text-indigo-700 rounded-xl">
+                  <Database className="h-5 w-5" />
+                </div>
+                <div>
+                  <DialogTitle className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <span>PWA Offline Engine & Background Sync</span>
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] uppercase font-bold ${
+                        isOffline
+                          ? "bg-amber-50 text-amber-700 border-amber-300"
+                          : "bg-emerald-50 text-emerald-700 border-emerald-300"
+                      }`}
+                    >
+                      {isOffline ? "Offline Mode" : "Online & Connected"}
+                    </Badge>
+                  </DialogTitle>
+                  <DialogDescription className="text-xs text-slate-500 mt-0.5">
+                    IndexedDB durable queue with auto-retry background synchronization to Cloud D1
+                  </DialogDescription>
+                </div>
+              </div>
+            </div>
+
+            {/* Sub Tabs */}
+            <div className="flex items-center space-x-1 mt-3 pt-1 border-t border-slate-200/60">
+              <button
+                type="button"
+                onClick={() => setOfflineModalTab("queue")}
+                className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                  offlineModalTab === "queue"
+                    ? "bg-white text-indigo-600 shadow-xs border border-slate-200"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <HardDrive className="h-3.5 w-3.5" />
+                <span>Pending Queue ({queueCounts.totalCount})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setOfflineModalTab("history")}
+                className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                  offlineModalTab === "history"
+                    ? "bg-white text-indigo-600 shadow-xs border border-slate-200"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <History className="h-3.5 w-3.5" />
+                <span>Sync Audit Logs ({offlineSyncHistory.length})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setOfflineModalTab("pwa")}
+                className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                  offlineModalTab === "pwa"
+                    ? "bg-white text-indigo-600 shadow-xs border border-slate-200"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <Smartphone className="h-3.5 w-3.5" />
+                <span>PWA Diagnostics</span>
+              </button>
+            </div>
+          </DialogHeader>
+
+          {/* Modal Tab Contents */}
+          <div className="flex-1 overflow-y-auto p-6 space-y-4">
+            {/* TAB 1: PENDING QUEUE */}
+            {offlineModalTab === "queue" && (
+              <div className="space-y-4">
+                {/* Status Summary Banner */}
+                <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs">
+                  <div className="space-y-0.5">
+                    <p className="font-semibold text-slate-800">
+                      Total Queued Items: <span className="font-mono text-indigo-600">{queueCounts.totalCount}</span>
+                    </p>
+                    <p className="text-slate-500">
+                      {queueCounts.salesCount} sale(s), {queueCounts.inventoryCount} stock adjustment(s), {queueCounts.expensesCount} expense(s)
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    disabled={isSyncEngineRunning || queueCounts.totalCount === 0}
+                    onClick={handleTriggerFullSync}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs flex items-center gap-1.5"
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 ${isSyncEngineRunning ? "animate-spin" : ""}`} />
+                    <span>{isSyncEngineRunning ? "Synchronizing..." : "Sync to Database Now"}</span>
+                  </Button>
+                </div>
+
+                {/* Sales Queue */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                      <Receipt className="h-3.5 w-3.5 text-indigo-500" />
+                      <span>Pending Sales Queue ({pendingSalesList.length})</span>
+                    </h4>
+                  </div>
+                  {pendingSalesList.length === 0 ? (
+                    <div className="text-center py-4 border rounded-lg bg-slate-50/50 text-xs text-slate-400">
+                      No pending sales queued in local IndexedDB.
+                    </div>
+                  ) : (
+                    <div className="border rounded-lg overflow-hidden divide-y divide-slate-100 max-h-48 overflow-y-auto">
+                      {pendingSalesList.map((sale) => (
+                        <div key={sale.id} className="p-3 bg-white hover:bg-slate-50 flex items-center justify-between text-xs">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono font-bold text-slate-900">{sale.invoiceNumber}</span>
+                              <Badge variant="outline" className="text-[10px] py-0">{sale.paymentMethod}</Badge>
+                            </div>
+                            <p className="text-slate-500 text-[11px] mt-0.5">
+                              {sale.items.length} item(s) · Total: ${sale.totalAmount.toFixed(2)} · Cashier: {sale.cashierName}
+                            </p>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={async () => {
+                              await removePendingSale(sale.id);
+                              loadOfflineQueueData();
+                            }}
+                            className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 h-7 px-2 text-xs"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Inventory Mutations Queue */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                      <Package className="h-3.5 w-3.5 text-amber-500" />
+                      <span>Pending Inventory Stock Mutations ({pendingInventoryList.length})</span>
+                    </h4>
+                  </div>
+                  {pendingInventoryList.length === 0 ? (
+                    <div className="text-center py-4 border rounded-lg bg-slate-50/50 text-xs text-slate-400">
+                      No pending stock updates queued.
+                    </div>
+                  ) : (
+                    <div className="border rounded-lg overflow-hidden divide-y divide-slate-100 max-h-48 overflow-y-auto">
+                      {pendingInventoryList.map((inv) => (
+                        <div key={inv.id} className="p-3 bg-white hover:bg-slate-50 flex items-center justify-between text-xs">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-slate-800">{inv.productName}</span>
+                              <span className="font-mono text-slate-400 text-[11px]">({inv.sku})</span>
+                            </div>
+                            <p className="text-slate-500 text-[11px] mt-0.5">
+                              {inv.storeId}: {inv.previousStock} → <strong className="text-indigo-600 font-mono">{inv.newStock} units</strong> ({inv.reason})
+                            </p>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={async () => {
+                              await removePendingInventory(inv.id);
+                              loadOfflineQueueData();
+                            }}
+                            className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 h-7 px-2 text-xs"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Expenses Queue */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+                      <TrendingDown className="h-3.5 w-3.5 text-rose-500" />
+                      <span>Pending Expense Logs ({pendingExpensesList.length})</span>
+                    </h4>
+                  </div>
+                  {pendingExpensesList.length === 0 ? (
+                    <div className="text-center py-4 border rounded-lg bg-slate-50/50 text-xs text-slate-400">
+                      No pending expense logs queued.
+                    </div>
+                  ) : (
+                    <div className="border rounded-lg overflow-hidden divide-y divide-slate-100 max-h-48 overflow-y-auto">
+                      {pendingExpensesList.map((exp) => (
+                        <div key={exp.id} className="p-3 bg-white hover:bg-slate-50 flex items-center justify-between text-xs">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-slate-800">{exp.category}</span>
+                              <span className="font-mono text-rose-600 font-bold">${exp.amount.toFixed(2)}</span>
+                            </div>
+                            <p className="text-slate-500 text-[11px] mt-0.5">
+                              {exp.description} · Recorded by: {exp.recordedBy}
+                            </p>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={async () => {
+                              await removePendingExpense(exp.id);
+                              loadOfflineQueueData();
+                            }}
+                            className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 h-7 px-2 text-xs"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* TAB 2: SYNC AUDIT LOGS */}
+            {offlineModalTab === "history" && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-slate-500">
+                    Audit log of synchronization runs between browser IndexedDB and Cloud database.
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={loadOfflineQueueData}
+                    className="h-7 text-xs"
+                  >
+                    <RefreshCw className="h-3 w-3 mr-1" />
+                    Refresh Logs
+                  </Button>
+                </div>
+
+                {offlineSyncHistory.length === 0 ? (
+                  <div className="text-center py-8 border rounded-lg bg-slate-50 text-xs text-slate-400">
+                    No sync cycles recorded yet. Sync cycles will appear here when background sync triggers.
+                  </div>
+                ) : (
+                  <div className="border rounded-lg divide-y divide-slate-100 max-h-[340px] overflow-y-auto">
+                    {offlineSyncHistory.map((log) => (
+                      <div key={log.id} className="p-3 bg-white hover:bg-slate-50 flex items-start justify-between gap-3 text-xs">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <Badge
+                              variant="outline"
+                              className={`text-[10px] uppercase font-bold ${
+                                log.status === "success"
+                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                  : log.status === "failed"
+                                  ? "bg-rose-50 text-rose-700 border-rose-200"
+                                  : "bg-amber-50 text-amber-700 border-amber-200"
+                              }`}
+                            >
+                              {log.status}
+                            </Badge>
+                            <span className="font-semibold text-slate-800 capitalize">
+                              Trigger: {log.trigger.replace("_", " ")}
+                            </span>
+                            <span className="text-[11px] text-slate-400">
+                              {new Date(log.timestamp).toLocaleTimeString()}
+                            </span>
+                          </div>
+                          <p className="text-slate-600 text-[11px]">{log.details}</p>
+                          {(log.salesCount > 0 || log.inventoryCount > 0 || log.expensesCount > 0) && (
+                            <p className="text-slate-400 text-[10px] font-mono">
+                              Synced: {log.salesCount} sales, {log.inventoryCount} stock, {log.expensesCount} exp
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB 3: PWA DIAGNOSTICS */}
+            {offlineModalTab === "pwa" && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="p-3.5 rounded-lg border bg-slate-50 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-slate-700">Service Worker</span>
+                      <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 text-[10px]">
+                        Registered (/sw.js)
+                      </Badge>
+                    </div>
+                    <p className="text-[11px] text-slate-500">
+                      Caches static assets with stale-while-revalidate and intercepts offline network calls.
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 rounded-lg border bg-slate-50 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-slate-700">Local Storage Layer</span>
+                      <Badge className="bg-indigo-100 text-indigo-800 border-indigo-300 text-[10px]">
+                        IndexedDB v1
+                      </Badge>
+                    </div>
+                    <p className="text-[11px] text-slate-500">
+                      Stores pending transactions, stock mutations, and product catalog offline.
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 rounded-lg border bg-slate-50 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-slate-700">Background Sync API</span>
+                      <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 text-[10px]">
+                        Active (Tag: waw-pos-sync)
+                      </Badge>
+                    </div>
+                    <p className="text-[11px] text-slate-500">
+                      Wakes up service worker when network connectivity is re-established.
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 rounded-lg border bg-slate-50 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-slate-700">Catalog Cache</span>
+                      <Badge className="bg-slate-200 text-slate-800 text-[10px]">
+                        {products.length} Products Cached
+                      </Badge>
+                    </div>
+                    <p className="text-[11px] text-slate-500">
+                      Enables sub-millisecond offline barcode lookup and instant search.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-lg bg-indigo-50/50 border border-indigo-100 space-y-2">
+                  <h4 className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
+                    <Sparkles className="h-3.5 w-3.5 text-indigo-600" />
+                    <span>Quick Diagnostics Actions</span>
+                  </h4>
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        cacheProductCatalog(products);
+                        alert(`Refreshed ${products.length} catalog items in IndexedDB product cache.`);
+                      }}
+                      className="text-xs bg-white"
+                    >
+                      <RefreshCw className="h-3 w-3 mr-1" />
+                      Re-cache Product Catalog
+                    </Button>
+                    {pwaInstallPrompt && !isPwaInstalled && (
+                      <Button
+                        size="sm"
+                        onClick={async () => {
+                          if (pwaInstallPrompt) {
+                            pwaInstallPrompt.prompt();
+                            const { outcome } = await pwaInstallPrompt.userChoice;
+                            if (outcome === "accepted") {
+                              setIsPwaInstalled(true);
+                              setPwaInstallPrompt(null);
+                            }
+                          }
+                        }}
+                        className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                      >
+                        <Smartphone className="h-3 w-3 mr-1" />
+                        Install Progressive Web App
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="px-6 py-3 border-t bg-slate-50/80 flex items-center justify-between">
+            <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
+              <CheckCheck className="h-3.5 w-3.5 text-emerald-600" />
+              <span>Offline data is safe and protected against accidental tab closes</span>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setIsOfflineSyncModalOpen(false)}
+            >
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

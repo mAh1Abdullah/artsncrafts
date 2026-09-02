@@ -96,26 +96,3 @@ Represents a business expense.
 * `cart_data`: TEXT (JSON string of items left in cart)
 * `recovery_status`: TEXT (Enum: `pending`, `recovered`, `lost`)
 * `created_at`: INTEGER (Timestamp)
-- `id`: TEXT (Primary Key, UUID)
-- `expense_date`: INTEGER (Unix timestamp of the expense)
-- `category`: TEXT (e.g., "Rent", "Utilities", "Supplies", "Salaries")
-- `amount`: REAL (Amount of the expense)
-- `description`: TEXT (Optional, details about the expense)
-- `created_at`: INTEGER (Unix timestamp)
-- `updated_at`: INTEGER (Unix timestamp)
-
-## Orders / Transactions
-* `id` (Primary Key)
-* `store_id` (Foreign Key to Stores)
-* `cashier_id` (Foreign Key to Users)
-* `total_amount` (Decimal / Integer)
-* `payment_method` (String: `cash`, `card`, `external`)
-* `status` (String: `completed`, `refunded`, `pending`)
-* `created_at` (Timestamp)
-
-## Order Items
-* `id` (Primary Key)
-* `order_id` (Foreign Key to Orders)
-* `product_id` (Foreign Key to Products)
-* `quantity` (Integer)
-* `unit_price` (Decimal / Integer)

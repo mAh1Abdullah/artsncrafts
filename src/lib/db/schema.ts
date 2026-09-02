@@ -37,16 +37,29 @@ export const userRoleEnum = pgEnum('user_role', [
   'owner',
   'admin',
   'manager',
+  'store_manager',
   'cashier',
+  'vendor',
 ]);
 
 export const paymentMethodEnum = pgEnum('payment_method', [
   'cash',
   'card',
   'upi',
+  'bkash',
+  'nagad',
+  'uddoktapay',
+  'amarpay',
+  'cod',
   'mobile_banking',
   'split',
   'external',
+]);
+
+export const paymentStatusEnum = pgEnum('payment_status', [
+  'paid',
+  'partial',
+  'unpaid',
 ]);
 
 export const orderStatusEnum = pgEnum('order_status', [
@@ -55,6 +68,19 @@ export const orderStatusEnum = pgEnum('order_status', [
   'refunded',
   'voided',
   'partially_refunded',
+  'incomplete',
+  'cancelled',
+]);
+
+export const courierServiceEnum = pgEnum('courier_service', [
+  'pathao',
+  'steadfast',
+]);
+
+export const cartRecoveryStatusEnum = pgEnum('cart_recovery_status', [
+  'pending',
+  'recovered',
+  'lost',
 ]);
 
 export const syncStatusEnum = pgEnum('sync_status', [
@@ -235,7 +261,9 @@ export const products = pgTable(
     id: uuid('id').primaryKey().defaultRandom(),
     tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
     storeId: uuid('store_id').references(() => stores.id, { onDelete: 'set null' }), // Multi-tenant store isolation
+    vendorId: uuid('vendor_id').references(() => users.id, { onDelete: 'set null' }), // Multi-vendor support
     categoryId: uuid('category_id').references(() => categories.id, { onDelete: 'set null' }),
+    brand: text('brand'), // Optional brand identifier for marketing & categorization
     name: text('name').notNull(),
     description: text('description'),
     sku: text('sku').notNull(),
@@ -258,6 +286,7 @@ export const products = pgTable(
     tenantBarcodeIdx: index('tenant_barcode_idx').on(table.tenantId, table.barcode),
     tenantNameIdx: index('tenant_prod_name_idx').on(table.tenantId, table.name),
     productStoreIdx: index('product_store_idx').on(table.storeId),
+    productVendorIdx: index('product_vendor_idx').on(table.vendorId),
   })
 );
 
@@ -379,7 +408,74 @@ export const expenses = pgTable('expenses', {
 });
 
 // ============================================================================
-// 8. UNIVERSAL E-COMMERCE INTEGRATIONS & WEBHOOKS
+// 8. E-COMMERCE ORDERS, LOGISTICS & ABANDONED CARTS
+// ============================================================================
+export const orders = pgTable(
+  'orders',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+    storeId: uuid('store_id').references(() => stores.id, { onDelete: 'cascade' }).notNull(),
+    customerId: uuid('customer_id'),
+    totalAmount: numeric('total_amount', { precision: 10, scale: 2 }).notNull(),
+    advanceAmount: numeric('advance_amount', { precision: 10, scale: 2 }).default('0.00').notNull(),
+    dueBalance: numeric('due_balance', { precision: 10, scale: 2 }).default('0.00').notNull(),
+    paymentMethod: paymentMethodEnum('payment_method').default('cod').notNull(),
+    paymentStatus: paymentStatusEnum('payment_status').default('unpaid').notNull(),
+    status: orderStatusEnum('status').default('pending').notNull(),
+    courierService: courierServiceEnum('courier_service'),
+    trackingCode: text('tracking_code'),
+    fraudRiskScore: numeric('fraud_risk_score', { precision: 4, scale: 2 }),
+    customerPhone: text('customer_phone'),
+    shippingAddress: text('shipping_address'),
+    notes: text('notes'),
+    createdAt: timestamp('created_at', { mode: 'date' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+    updatedAt: timestamp('updated_at', { mode: 'date' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+  },
+  (table) => ({
+    orderStoreIdx: index('order_store_idx').on(table.storeId),
+    orderStatusIdx: index('order_status_idx').on(table.status),
+    orderPaymentStatusIdx: index('order_payment_status_idx').on(table.paymentStatus),
+    orderTrackingIdx: index('order_tracking_idx').on(table.trackingCode),
+  })
+);
+
+export const orderItems = pgTable(
+  'order_items',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orderId: uuid('order_id').references(() => orders.id, { onDelete: 'cascade' }).notNull(),
+    productId: uuid('product_id').references(() => products.id, { onDelete: 'cascade' }).notNull(),
+    quantity: integer('quantity').notNull(),
+    unitPrice: numeric('unit_price', { precision: 10, scale: 2 }).notNull(),
+    totalPrice: numeric('total_price', { precision: 10, scale: 2 }),
+  },
+  (table) => ({
+    orderItemOrderIdx: index('order_item_order_idx').on(table.orderId),
+  })
+);
+
+export const abandonedCarts = pgTable(
+  'abandoned_carts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').references(() => tenants.id, { onDelete: 'cascade' }),
+    storeId: uuid('store_id').references(() => stores.id, { onDelete: 'cascade' }).notNull(),
+    customerPhone: text('customer_phone').notNull(),
+    customerEmail: text('customer_email'),
+    cartData: jsonb('cart_data').notNull(), // items, quantities, pricing JSON
+    recoveryStatus: cartRecoveryStatusEnum('recovery_status').default('pending').notNull(),
+    createdAt: timestamp('created_at', { mode: 'date' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+    updatedAt: timestamp('updated_at', { mode: 'date' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+  },
+  (table) => ({
+    cartStoreIdx: index('cart_store_idx').on(table.storeId),
+    cartPhoneIdx: index('cart_phone_idx').on(table.customerPhone),
+  })
+);
+
+// ============================================================================
+// 9. UNIVERSAL E-COMMERCE INTEGRATIONS & WEBHOOKS
 // ============================================================================
 export const apiKeys = pgTable('api_keys', {
   id: uuid('id').primaryKey().defaultRandom(),
