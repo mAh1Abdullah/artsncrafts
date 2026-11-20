@@ -1,0 +1,6 @@
+{
+  "name": "The Artisan's Market",
+  "description": "A multi-vendor e-commerce marketplace for handcrafted arts, custom crafts, and wholesale raw materials.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
