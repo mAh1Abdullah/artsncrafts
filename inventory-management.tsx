@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useId } from "react";
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -502,6 +503,78 @@ export default function Component() {
       document.cookie = `waw_tier=${subscriptionTier}; path=/; max-age=86400`;
     }
   }, [userRole, subscriptionTier]);
+
+  // Hydrate live catalog from WAW-POS backend API so Artisans Market storefront stock stays synced
+  useEffect(() => {
+    let active = true;
+    const fetchLiveCatalog = async () => {
+      try {
+        const res = await fetch("/api/v1/products", { cache: "no-store" });
+        const json = await res.json();
+        if (!active || !json?.success || !Array.isArray(json.data) || json.data.length === 0) {
+          return;
+        }
+        const categoryNames: Record<string, string> = {
+          "cat-handicrafts": "Handicrafts",
+          "cat-apparel": "Textiles & Apparel",
+          "cat-home-living": "Woodcraft & Home",
+          "cat-accessories": "Jewelry & Leather",
+          "cat-furniture": "Furniture",
+          "cat-electronics": "Electronics",
+          "cat-lighting": "Lighting",
+        };
+        const mapped: POSProduct[] = json.data.map(
+          (raw: {
+            id: string;
+            name: string;
+            sku: string;
+            barcode?: string | null;
+            categoryId?: string | null;
+            currentStock?: number | null;
+            reorderLevel?: number | null;
+            unitCost?: string | number | null;
+            sellingPrice?: string | number | null;
+            taxRatePercentage?: string | number | null;
+            isSyncedToEcommerce?: boolean | null;
+            externalEcommerceId?: string | null;
+          }) => {
+            const stock = Number(raw.currentStock ?? 0);
+            const minStock = Number(raw.reorderLevel ?? 5);
+            const status: POSProduct["status"] =
+              stock <= 0 ? "Out of Stock" : stock <= minStock ? "Low Stock" : "In Stock";
+            return {
+              id: raw.id,
+              name: raw.name,
+              sku: raw.sku,
+              barcode: raw.barcode || `890${raw.sku}`,
+              category: (raw.categoryId && categoryNames[raw.categoryId]) || "Handicrafts",
+              stock,
+              minStock,
+              unitCost: Number(raw.unitCost ?? 0),
+              price: Number(raw.sellingPrice ?? 0),
+              taxRate: Number(raw.taxRatePercentage ?? 0),
+              status,
+              syncedToEcommerce: raw.isSyncedToEcommerce !== false,
+              externalId: raw.externalEcommerceId || undefined,
+              storeStocks: {
+                "SYL-01": stock,
+                "ZIN-02": Math.max(0, Math.floor(stock * 0.35)),
+                "DHK-03": Math.max(0, Math.floor(stock * 0.25)),
+              },
+            };
+          }
+        );
+        setProducts(mapped);
+        cacheProductCatalog(mapped);
+      } catch {
+        // Keep cached/fallback products offline
+      }
+    };
+    fetchLiveCatalog();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Synchronize network online/offline listeners, IndexedDB background sync, and PWA install prompt
   useEffect(() => {
@@ -1288,6 +1361,16 @@ export default function Component() {
 
           {/* User Role & Quick Context Switchers */}
           <div className="flex items-center space-x-2">
+            {/* Link to Artisans Market Frontend Storefront */}
+            <Link
+              href="/"
+              className="flex items-center space-x-1.5 text-xs bg-[#18181B] hover:bg-[#B84A27] text-white px-3 py-1.5 rounded-lg font-medium transition-colors whitespace-nowrap shrink-0"
+              title="Open Artisans Market Customer Storefront"
+            >
+              <Globe className="h-3.5 w-3.5" />
+              <span>Artisans Storefront</span>
+            </Link>
+
             {/* PWA Install Button */}
             {pwaInstallPrompt && !isPwaInstalled && (
               <button
