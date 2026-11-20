@@ -1,5 +1,5 @@
-import Component from "../../../inventory-management";
+import { redirect } from "next/navigation";
 
-export default function DashboardBackendPage() {
-  return <Component />;
+export default function LegacyDashboardRedirectPage() {
+  redirect("/pos");
 }

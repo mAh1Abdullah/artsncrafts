@@ -1,5 +1,5 @@
-import Component from "../../../inventory-management";
+import { PosWorkspace } from "@/features/pos/components/PosWorkspace";
 
 export default function PosBackendPage() {
-  return <Component />;
+  return <PosWorkspace />;
 }

@@ -52,7 +52,9 @@ export async function fetchProductStockHistory(productId: string): Promise<Stock
 export async function adjustProductStockAction(params: SingleStockAdjustmentParams) {
   try {
     const result = await adjustProductStock(params);
-    revalidatePath('/inventory');
+    revalidatePath('/pos/inventory');
+    revalidatePath('/pos');
+    revalidatePath('/');
     return { success: true, product: result.product, log: result.log };
   } catch (error) {
     console.error('Failed to adjust product stock:', error);
@@ -74,8 +76,10 @@ export async function addProduct(product: NewProduct) {
     };
   }
 
-  revalidatePath('/inventory');
-  redirect('/inventory');
+  revalidatePath('/pos/inventory');
+  revalidatePath('/pos');
+  revalidatePath('/');
+  redirect('/pos/inventory');
 }
 
 export async function editProduct(id: string, product: Partial<NewProduct>) {
@@ -89,14 +93,18 @@ export async function editProduct(id: string, product: Partial<NewProduct>) {
     };
   }
 
-  revalidatePath('/inventory');
-  redirect('/inventory');
+  revalidatePath('/pos/inventory');
+  revalidatePath('/pos');
+  revalidatePath('/');
+  redirect('/pos/inventory');
 }
 
 export async function removeProduct(id: string): Promise<void> {
   try {
     await deleteProduct(id);
-    revalidatePath('/inventory');
+    revalidatePath('/pos/inventory');
+    revalidatePath('/pos');
+    revalidatePath('/');
   } catch (error) {
     console.error('Failed to remove product:', error);
     throw new Error('Database Error: Failed to Delete Product.');
@@ -106,7 +114,9 @@ export async function removeProduct(id: string): Promise<void> {
 export async function batchDeleteProducts(ids: string[]) {
   try {
     const result = await bulkDeleteProducts(ids);
-    revalidatePath('/inventory');
+    revalidatePath('/pos/inventory');
+    revalidatePath('/pos');
+    revalidatePath('/');
     return { success: true, count: result.count };
   } catch (error) {
     console.error('Failed to batch delete products:', error);
@@ -120,7 +130,9 @@ export async function batchDeleteProducts(ids: string[]) {
 export async function batchSetStock(ids: string[], newStock: number) {
   try {
     const result = await bulkUpdateStock(ids, newStock);
-    revalidatePath('/inventory');
+    revalidatePath('/pos/inventory');
+    revalidatePath('/pos');
+    revalidatePath('/');
     return { success: true, count: result.count };
   } catch (error) {
     console.error('Failed to batch set stock:', error);
@@ -134,7 +146,9 @@ export async function batchSetStock(ids: string[], newStock: number) {
 export async function batchAdjustStock(ids: string[], delta: number) {
   try {
     const result = await bulkAdjustStock(ids, delta);
-    revalidatePath('/inventory');
+    revalidatePath('/pos/inventory');
+    revalidatePath('/pos');
+    revalidatePath('/');
     return { success: true, count: result.count };
   } catch (error) {
     console.error('Failed to batch adjust stock:', error);
@@ -148,7 +162,9 @@ export async function batchAdjustStock(ids: string[], delta: number) {
 export async function batchUpdateReorderLevel(ids: string[], reorderLevel: number) {
   try {
     const result = await bulkUpdateReorderLevel(ids, reorderLevel);
-    revalidatePath('/inventory');
+    revalidatePath('/pos/inventory');
+    revalidatePath('/pos');
+    revalidatePath('/');
     return { success: true, count: result.count };
   } catch (error) {
     console.error('Failed to batch update reorder level:', error);

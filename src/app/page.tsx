@@ -1,5 +1,5 @@
 import { getProducts, DEFAULT_TENANT } from "@/lib/db/products";
-import { ArtisansStorefront } from "@/components/artisans/ArtisansStorefront";
+import { ArtisansStorefront } from "@/features/artisans/components/ArtisansStorefront";
 
 export const dynamic = "force-dynamic";
 
