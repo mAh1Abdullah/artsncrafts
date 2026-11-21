@@ -1,44 +1,16 @@
-# Development Roadmap & Delivery Status
+# Platform Roadmap
 
 ## Completed Milestones
 
-### Phase 1: Core WAW-POS Foundation (Completed)
-- Built Next.js 15 App Router workspace with Tailwind CSS v4 and Radix UI primitives.
-- Implemented core POS register, barcode/SKU scan input, multi-channel tender dialog, 80mm/58mm thermal receipts, sales ledger, and expense tracking.
-- Authored Drizzle ORM schema (`src/lib/db/schema.ts`), SQL migrations (`drizzle/`), and resilient catalog repository (`src/lib/db/products.ts`).
-
-### Phase 2: Offline-First PWA & Background Sync (Completed)
-- Built IndexedDB storage engine (`src/lib/offline-db.ts`) for `pending_sales`, `pending_inventory`, `pending_expenses`, `catalog_cache`, and `sync_history_logs`.
-- Implemented Service Worker (`public/sw.js`), Web App Manifest (`public/manifest.json`), and auto-reconnect sync lifecycle (`src/lib/background-sync.ts`) posting to `POST /api/v1/sync/batch`.
-- Added in-app **Queue & Sync Manager** modal with diagnostics and manual sync trigger.
-
-### Phase 3: Multi-Branch Inventory, RBAC & E-Commerce Bridge (Completed)
-- Added multi-outlet stock management, inter-branch transfers, batch stock operations, Code128 label printing, and standalone Stock Audit Console (`/pos/inventory`).
-- Enforced RBAC (`owner`, `admin`, `manager`, `cashier`) and SaaS subscription tiers (`starter`, `pro`, `enterprise`) across UI guards and `src/middleware.ts`.
-- Added E-Commerce & Logistics dashboard, Shopify/WooCommerce webhook simulators, and Resellers & Growth hub.
-
-### Phase 4: Artisans Market Storefront Integration (Completed)
-- Launched **Artisans Market** customer storefront at `/` with studio craft photography (`public/images/artisans/`), heritage workshop drawers, product customization, BDT/USD currency switcher, localized Bangladesh checkout, and live order tracker.
-- Connected storefront checkout atomically to `POST /api/v1/orders` with live inventory deduction synced directly with `/pos`.
-
-### Phase 5: Feature-Sliced Architecture & Docs Standardization (Completed)
-- Decomposed the 4,700-line root POS monolith into feature-sliced modules under `src/features/pos/` (`hooks/`, `views/`, `dialogs/`, `shared/`, `data/`, `types.ts`).
-- Organized storefront and standalone inventory modules into `src/features/artisans/` and `src/features/inventory/`.
-- Consolidated routes to `/`, `/pos`, and `/pos/inventory` with legacy server redirects for `/dashboard` and `/inventory`.
-- Replaced legacy `doc/` files with a standardized `docs/` engineering knowledge base including `docs/architecture.md`.
-
----
+- **Phase 1 — WAW-POS Core & Offline-First Engine**: Retail POS terminal, IndexedDB queue, background sync, barcode label printing, expenses, and financial P&L analytics.
+- **Phase 2 — Turborepo Monorepo Migration**: Split repository into `apps/storefront` (`@waw/storefront`), `apps/dashboard` (`@waw/dashboard`), and `packages/contracts` (`@waw/contracts`).
+- **Phase 3 — Next.js 16 & PostgreSQL Consolidation**: Upgraded backend to Next.js 16 (`proxy.ts`, flat ESLint 9, Turbopack) and consolidated all POS + Marketplace Drizzle PostgreSQL schemas strictly inside `apps/dashboard`.
+- **Phase 4 — Industry-Standard REST v1 API**: Standardized all `/api/v1/*` routes with `{ data, meta }` envelopes, pagination, RFC 9457 `application/problem+json` errors, Zod validation, allowlisted CORS, and `Idempotency-Key` support.
+- **Phase 5 — Astro 7.4 Storefront & Merchant Consoles**: Rewrote the customer marketplace in Astro 7.4 with React 19 islands, moved Seller Studio, Marketplace Admin, and Shipping Logistics into `apps/dashboard`, and integrated server-side Gemini 4 Hydrogen AI services.
 
 ## Upcoming Milestones
 
-### Phase 6: Production Authentication & Persistent Cloudflare D1 Deployment
-- Integrate live OAuth/session providers (Auth.js / Firebase Auth) replacing demo role-switcher cookies in production builds.
-- Bind Cloudflare D1 production database across all `/api/v1/*` routes and Server Actions.
-
-### Phase 7: Live Payment Gateway & Courier API Webhooks
-- Wire production credentials for bKash Tokenized Checkout, Nagad, AmarPay, Steadfast, Pathao, and RedX via server-side API routes.
-- Enable automated SMS/WhatsApp order confirmation and courier tracking notifications.
-
-### Phase 8: Hardware Peripherals & Automated QA
-- Add WebUSB / ESC-POS direct thermal printer driver support and barcode scanner keyboard wedge presets.
-- Add end-to-end Playwright coverage for offline-to-online sync recovery and storefront-to-POS stock reconciliation.
+- **Phase 6 — Live Payment Gateway Webhooks**: Connect production bKash Tokenized Checkout, Nagad Merchant API, and SSLCommerz IPN verification backed by `payment_provider_events`.
+- **Phase 7 — Production Auth & Session Federation**: Integrate multi-role authentication (Owner, Admin, Manager, Cashier, Artisan, Buyer) with HTTP-only session cookies across `:3000` and `:4321`.
+- **Phase 8 — Live Courier API Dispatch**: Wire live Pathao Merchant API and Steadfast Consignment webhooks into `/api/v1/shipments`.
+- **Phase 9 — Multi-Currency International Shipping**: Expand checkout with DHL/FedEx international rate tables for overseas Bangladeshi craft collectors.

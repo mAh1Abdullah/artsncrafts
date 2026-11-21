@@ -1,35 +1,33 @@
 ## Project Summary
 
-WAW-POS is a modern, offline-first Point of Sale (POS) application designed for small businesses. It enables efficient management of products, sales transactions, expenses, and provides comprehensive reporting capabilities. The application is built with a focus on usability, performance, and reliability, with a key feature being its ability to function offline and synchronize data when connectivity is restored.
+WAW-POS & The Artisan's Market is a **Turborepo** monorepo uniting an **Astro v7.4** customer-facing artisan marketplace storefront (`apps/storefront`, port `4321`) with a **Next.js 16** offline-first POS, merchant operations platform, and industry-standard REST v1 API (`apps/dashboard`, port `3000`).
 
-## Core Features
+## Architectural Boundaries
 
-*   **Product Management**: Add, edit, delete products with detailed attributes (name, description, price, SKU, stock, reorder level).
-*   **Stock Management**: Real-time tracking of stock levels, reorder alerts for low stock.
-*   **Sales Transaction**: Record sales with multiple items, quantities, and support for various payment methods (Cash, Card, UPI).
-*   **Expense Logging**: Categorize and record business expenses with date, amount, and description.
-*   **Comprehensive Reporting**: Generate detailed sales, expense, and inventory reports with various metrics.
-*   **Data Export**: Export reports in CSV and PDF formats.
-*   **Offline-first Support**: Continue operations (sales, expenses) without an active internet connection.
-*   **Background Sync**: Automatic synchronization of offline data with the database upon re-establishing connectivity.
+*   **Strict Database Ownership**: All PostgreSQL / Drizzle ORM schemas (`apps/dashboard/src/lib/db/schema.ts`), migrations, and database drivers live strictly inside `apps/dashboard` (Next.js 16).
+*   **Pure REST Storefront**: `apps/storefront` (Astro 7.4) has zero database dependencies and communicates exclusively with `apps/dashboard` over `/api/v1/*` using the typed REST client from `packages/contracts` (`@waw/contracts`).
+*   **REST API Standards**: Every `/api/v1/*` route enforces `{ data, meta }` envelopes, paginated collections, RFC 9457 `application/problem+json` errors, Zod validation, allowlisted CORS, `X-Request-Id`, and `Idempotency-Key` on order/sync writes.
+
+## Core Workspaces & Features
+
+*   **Storefront (`apps/storefront` — `:4321`)**: Editorial catalog, PDP customizer & reviews, verified artisan shops, cart/checkout with coupon validation & delivery zones, Raw Materials wholesale (MOQ + online payment), artisan onboarding, buyer portal, and server-proxied AI Craft Advisor.
+*   **Operations & POS (`apps/dashboard` — `:3000`)**:
+    *   `/` — Operations Command Hub
+    *   `/pos` — Offline-first WAW-POS register with IndexedDB queue & background sync
+    *   `/pos/inventory` — Stock audit & barcode printing console
+    *   `/seller` — Artisan Seller Studio with Gemini 4 Hydrogen product story generation
+    *   `/admin` — Marketplace governance (vendor/product/review moderation, coupons, settlements, audit logs)
+    *   `/shipping` — Bangladesh delivery zones, Pathao/Steadfast/RedX courier scoring, consignment booking & tracking
 
 ## Technology Stack
 
-The project leverages a modern JavaScript ecosystem for a full-stack development experience:
+*   **Monorepo**: Turborepo (`turbo.json`, npm/bun workspaces)
+*   **Storefront**: Astro v7.4 (`@astrojs/node`, `@astrojs/react`), React 19, Tailwind CSS v4 (`@tailwindcss/vite`)
+*   **Backend & Operations**: Next.js 16 (App Router, Turbopack, `src/proxy.ts`), PostgreSQL (Neon Serverless), Drizzle ORM, PWA IndexedDB Sync
+*   **Shared Contracts**: `@waw/contracts` (TypeScript DTOs, Zod schemas, typed REST client)
+*   **AI**: `@google/genai` (`gemini-4-hydrogen`) strictly server-side in `apps/dashboard/src/app/api/v1/ai/*`
 
-*   **Full-stack Framework**: Next.js (App Router)
-*   **Database**: Cloudflare D1 (serverless SQL)
-*   **ORM**: Drizzle ORM (type-safe database interactions)
-*   **Authentication**: Auth.js (for user authentication, e.g., Google OAuth)
-*   **PWA**: Next PWA (for Progressive Web App features and offline capabilities)
-*   **Styling**: Tailwind CSS
-*   **Deployment**: Vercel
+## Coding Conventions
 
-## How to Interact with Me (Gemini)
-
-*   **Context is Key**: Always provide context for your requests. If you're asking about a specific file, mention its path.
-*   **Be Specific**: Clearly state what you want to achieve.
-*   **Verify Changes**: After I make changes, I will attempt to verify them by running tests or linting if applicable.
-*   **Ask for Clarification**: If my response is unclear or you need more details, please ask.
-*   **Code Style**: I will adhere to the existing code style and conventions found in the project.
-* always use updated library documentations.
+*   Always use updated library documentation (Next.js 16 `proxy.ts` & async route params, Astro 7.4, Tailwind CSS v4, Drizzle ORM).
+*   Verify changes with `npm run build` and `npm run lint` across all workspaces.

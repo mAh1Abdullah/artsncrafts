@@ -1,0 +1,65 @@
+---
+import StorefrontLayout from '../../layouts/StorefrontLayout.astro';
+import { ProductDetailIsland } from '../../components/ProductDetailIsland';
+import { createServerApiClient } from '../../lib/api';
+import type { ProductDTO, ReviewDTO } from '@waw/contracts';
+
+const { id } = Astro.params;
+const api = createServerApiClient();
+
+let product: ProductDTO | null = null;
+let reviews: ReviewDTO[] = [];
+
+if (id) {
+  try {
+    const [prodRes, revRes] = await Promise.all([
+      api.getProduct(id),
+      api.getReviews({ productId: id, status: 'approved' }),
+    ]);
+    product = prodRes.data;
+    reviews = revRes.data;
+  } catch {
+    product = null;
+  }
+}
+---
+
+<StorefrontLayout
+  title={product ? `${product.name} — The Artisan's Market` : "Product — The Artisan's Market"}
+  description={product?.description || "Handcrafted heirloom piece from The Artisan's Market."}
+>
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+    <nav class="mb-8 text-xs text-[#6E6359] flex items-center gap-2">
+      <a href="/" class="hover:text-[#221E1B]">Collections</a>
+      <span>/</span>
+      {product && (
+        <>
+          <a href={`/shops/${product.vendorSlug}`} class="hover:text-[#221E1B]">
+            {product.vendorName}
+          </a>
+          <span>/</span>
+          <span class="text-[#221E1B] font-medium truncate">{product.name}</span>
+        </>
+      )}
+    </nav>
+
+    {product ? (
+      <ProductDetailIsland client:load product={product} initialReviews={reviews} />
+    ) : (
+      <div class="rounded-xl border border-[#E5DDD2] bg-white p-12 text-center space-y-3">
+        <h1 class="font-editorial text-2xl font-semibold text-[#221E1B]">
+          Piece Not Found
+        </h1>
+        <p class="text-sm text-[#6E6359]">
+          This handcrafted listing may have been sold out or removed from the catalog.
+        </p>
+        <a
+          href="/"
+          class="inline-block mt-2 px-5 py-2.5 rounded-lg bg-[#221E1B] text-white text-sm font-medium"
+        >
+          Return to Collections
+        </a>
+      </div>
+    )}
+  </div>
+</StorefrontLayout>

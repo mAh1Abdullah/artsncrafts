@@ -1,102 +1,54 @@
-# Data Models & Persistence Schema
+# Data Models & PostgreSQL Schema Ownership
 
-The platform spans three coordinated data layers:
-1. **Relational Database Schema** (`src/lib/db/schema.ts`, Drizzle ORM / SQLite-compatible Cloudflare D1, with an in-memory repository fallback in `src/lib/db/products.ts`).
-2. **Client Offline Storage** (`src/lib/offline-db.ts`, IndexedDB database `waw_pos_offline_db`).
-3. **Domain View Models** (`src/features/artisans/types.ts` and `src/features/pos/types.ts`).
+All relational database schemas live exclusively in **`apps/dashboard/src/lib/db/schema.ts`** using Drizzle ORM (`drizzle-orm/pg-core`) targeting PostgreSQL (Neon Serverless). The Astro storefront (`apps/storefront`) never accesses the database directly; it exchanges JSON DTOs defined in `@waw/contracts` over REST.
 
 ---
 
-## 1. Core Relational Entities (`src/lib/db/schema.ts`)
+## 1. Core POS & Multi-Tenant Retail Tables
 
-### `tenants` & `stores`
-Supports multi-tenant SaaS isolation and multi-branch operations (`SYL-01`, `ZIN-02`, `DHK-03`).
-- `id` (`text`, PK)
-- `name` (`text`)
-- `subscriptionTier` (`"starter" | "pro" | "enterprise"`)
-- `enabledModules` (`json` / feature flags)
-- `createdAt`, `updatedAt`
-
-### `categories`
-- `id` (`text`, PK — e.g. `cat-handicrafts`, `cat-apparel`, `cat-home-living`)
-- `tenantId` (`text`, FK -> `tenants.id`)
-- `name` (`text`)
-- `description` (`text`, nullable)
-
-### `products`
-Shared single source of truth powering **Artisans Market (`/`)**, **WAW-POS (`/pos`)**, and **Stock Audit Console (`/pos/inventory`)**.
-- `id` (`text`, PK)
-- `tenantId` (`text`, FK)
-- `categoryId` (`text`, FK -> `categories.id`)
-- `name` (`text`)
-- `description` (`text`, nullable)
-- `sku` (`text`, unique per tenant)
-- `barcode` (`text`, nullable — EAN-13 / Code128)
-- `brand` (`text`, nullable — maps to artisan guild/workshop)
-- `imageUrl` (`text`, nullable — `/images/artisans/*.jpg`)
-- `unitPrice` / `unitCost` (`text` / decimal string — wholesale cost)
-- `sellingPrice` (`text` / decimal string — retail price)
-- `taxRatePercentage` (`text` — default `0` or `5`)
-- `currentStock` (`integer`)
-- `reorderLevel` (`integer`)
-- `isSyncedToEcommerce` (`boolean`)
-- `externalEcommerceId` (`text`, nullable)
-- `createdAt`, `updatedAt`
-
-### `stock_audit_logs`
-Immutable ledger of every stock movement across storefront orders, POS checkout, and manual adjustments.
-- `id` (`text`, PK)
-- `tenantId` (`text`)
-- `productId` (`text`, FK -> `products.id`)
-- `previousStock` (`integer`)
-- `changeAmount` (`integer`, signed delta)
-- `newStock` (`integer`)
-- `adjustmentType` (`"restock" | "sale" | "damage" | "return" | "correction" | "bulk_set" | "create_product"`)
-- `reason` (`text`)
-- `userId`, `userName`, `userRole` (`text`)
-- `createdAt` (`timestamp`)
-
-### `sales` & `sale_items` / `online_orders`
-Captures both physical POS register invoices and Artisans Market storefront orders.
-- `id` (`text`, PK)
-- `invoiceNo` / `orderNumber` (`text`, unique)
-- `tenantId`, `storeId` (`text`)
-- `customerName`, `customerPhone`, `shippingAddress` (`text`, nullable)
-- `subtotal`, `discountAmount`, `taxAmount`, `totalAmount` (`numeric`)
-- `paymentMethod` (`"cash" | "card" | "mobile_banking" | "upi" | "bkash" | "nagad" | "amarpay" | "cod"`)
-- `status` (`"pending" | "confirmed" | "packed" | "shipped" | "delivered" | "completed" | "refunded"`)
-- `source` (`"pos_terminal" | "artisans_storefront" | "ecommerce_sync"`)
-- `createdAt`
-
-### `expenses`
-- `id` (`text`, PK)
-- `tenantId`, `storeId` (`text`)
-- `category` (`text` — Rent & Utilities, Packaging, Logistics, etc.)
-- `amount` (`numeric`)
-- `description` (`text`)
-- `paymentMethod` (`text`)
-- `recordedBy` (`text`)
-- `expenseDate` (`text`, ISO date)
+- **`tenants`**: Multi-tenant workspace metadata (`id`, `name`, `slug`, `currency`, `timezone`).
+- **`stores`**: Physical branch locations (`id`, `tenant_id`, `name`, `code`, `is_main_branch`).
+- **`tenant_subscriptions`**: SaaS tier (`starter` / `pro` / `enterprise`), branch limits, and enabled modules JSON.
+- **`categories`**: Product category taxonomy per tenant.
+- **`products`**: Unified SKU catalog shared across WAW-POS and The Artisan's Market (`id`, `tenant_id`, `store_id`, `vendor_id`, `sku`, `barcode`, `unit_cost`, `selling_price`, `current_stock`, `reorder_level`, `is_synced_to_ecommerce`).
+- **`store_inventory`**: Per-branch stock quantities.
+- **`sales` & `sale_items`**: Completed POS and mirrored storefront transactions with itemized COGS and payment method.
+- **`expenses`**: Store operating expenses categorized by type and recorder.
+- **`stock_audit_logs`**: Immutable ledger of every stock delta (`restock`, `damage_waste`, `physical_count`, `return_restock`, `theft_loss`, `correction`).
+- **`api_keys` & `sync_events`**: External channel integration credentials and sync history.
 
 ---
 
-## 2. Offline IndexedDB Schema (`waw_pos_offline_db`)
+## 2. Marketplace, Vendor & Governance Tables (Consolidated into `apps/dashboard`)
 
-Managed in `src/lib/offline-db.ts` for resilient offline-first POS operation:
-
-| Object Store | Key Path | Purpose |
-| --- | --- | --- |
-| `pending_sales` | `id` | Queued offline POS sales awaiting batch push to `/api/v1/sync/batch`. |
-| `pending_inventory` | `id` | Queued offline stock adjustments and newly created SKUs. |
-| `pending_expenses` | `id` | Queued offline operational expenses. |
-| `catalog_cache` | `id` | Snapshot of `POSProduct[]` enabling instant offline barcode & search lookup. |
-| `sync_history_logs` | `id` | Timestamped audit trail of automatic, background, and manual sync runs. |
+- **`vendor_profiles`**: Artisan studios (`public_slug`, `display_name`, `status` workflow: `draft → submitted → under_review → approved | rejected | suspended`, `craft_specialty`, `workshop_location`, `allow_cod`).
+- **`coupons`**: Platform and vendor promo codes (`code`, `discount_type`, `discount_value`, `min_order_bdt`, `max_discount_cap_bdt`, `usage_limit`, `usage_count`).
+- **`user_trust_profiles`**: Buyer trust score (`0–100`), risk level (`low | medium | high`), and COD eligibility flags.
+- **`admin_audit_logs`**: Immutable governance trail capturing every admin decision (`actor`, `action`, `entity_type`, `entity_id`, `reason`).
 
 ---
 
-## 3. Storefront Domain Extensions (`src/features/artisans/types.ts`)
+## 3. Payments, Wallets & Vendor Settlements
 
-`mapBackendProductToArtisan()` (`src/features/artisans/data/artisans-catalog.ts`) enriches raw WAW-POS `products` rows with editorial metadata for `/`:
-- `ArtisanProduct`: maps `sellingPrice` to dual-currency (`priceUsd`, `priceBdt`), attaches heritage story, workshop guild (`ArtisanWorkshop`), craft dimensions, lead time, and selectable `CustomizationOption[]`.
-- `StorefrontCartItem`: binds `ArtisanProduct`, selected customizations, computed unit price, and quantity.
-- `StorefrontOrderRecord`: tracks placed storefront order ID, payment method, delivery estimate, and live status synced from `/api/v1/orders`.
+- **`payment_attempts` & `payments`**: Gateway initiation (`bkash`, `nagad`, `uddoktapay`, `amarpay`, `sslcommerz`, `cod`) and verified capture states.
+- **`payment_provider_events`**: Idempotent webhook audit records keyed by `(provider, provider_event_id)`.
+- **`refunds`**: Full or partial refund requests linked to payment records.
+- **`wallet_accounts` & `wallet_transactions`**: Buyer store-credit wallets with append-only credit/debit ledger entries.
+- **`vendor_settlements` & `vendor_payout_accounts`**: Periodic artisan payout cycles (`gross_amount_bdt`, `commission_bdt`, `net_amount_bdt`, `status`, masked bKash/bank payout destinations).
+
+---
+
+## 4. Wholesale Raw Materials (B2B Craft Supply)
+
+- **`raw_materials`**: Bulk craft supply listings (`category`, `price_bdt`, `unit`, `moq`, `stock_quantity`, `status`).
+- **`wholesale_orders`**: B2B artisan purchase orders enforcing MOQ validation and online-only prepayment.
+
+---
+
+## 5. Shipping, Bangladesh Zones & Customer Engagement
+
+- **`user_addresses`**: Saved collector shipping addresses across Bangladeshi divisions/districts.
+- **`delivery_zones`**: Regional delivery tariffs (`dhaka_metro`, `outside_dhaka`, `remote_area`) with min/max ETA days.
+- **`courier_providers`**: Integrated Bangladesh logistics carriers (`pathao`, `steadfast`, `redx`).
+- **`shipments` & `shipment_events`**: Consignment bookings with append-only tracking event timelines.
+- **`wishlist_items`**, **`product_reviews`**, **`notifications`**, and **`user_style_profiles`**: Collector engagement and personalization models.

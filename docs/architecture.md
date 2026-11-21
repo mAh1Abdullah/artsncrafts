@@ -1,163 +1,72 @@
-# System Architecture & Directory Guide
+# System Architecture — WAW-POS & The Artisan's Market Monorepo
 
-## 1. Platform Overview
+## 1. Monorepo Topology (Turborepo)
 
-This repository hosts a unified dual-surface retail & craft commerce platform:
-
-- **Artisans Market (`/`)** — Customer-facing handcrafted goods storefront inspired by Bangladeshi heritage guilds (Sylhet, Dhamrai, Tangail, Sonargaon), featuring curated collections, dynamic product customization, BDT/USD currency toggling, localized Bangladesh payment flows (bKash, Nagad, AmarPay, COD), and live shipment tracking.
-- **WAW-POS (`/pos` & `/pos/inventory`)** — Offline-first Point of Sale (POS), multi-branch inventory management, barcode scanning & label printing, expense tracking, financial P&L analytics, e-commerce logistics bridge, reseller growth hub, and RBAC/SaaS tier governance.
-
-Both surfaces share a single product catalog, stock ledger, and REST/Server Action backend so online storefront orders atomically deduct stock and record sales directly into the POS ledger.
-
----
-
-## 2. High-Level System Diagram
+The platform is organized as a **Turborepo** workspace separating the public customer storefront from the backend REST API, PostgreSQL database owner, and operational consoles:
 
 ```text
-┌──────────────────────────────────────────────────────────────────────────────┐
-│                         NEXT.JS 15 APP ROUTER ENTRY                          │
-│                                                                              │
-│   ┌───────────────────────────┐        ┌─────────────────────────────────┐   │
-│   │  Storefront Route (/)     │        │  Backoffice Routes (/pos,       │   │
-│   │  Artisans Market UI       │◄──────►│  /pos/inventory) + Redirects    │   │
-│   └─────────────┬─────────────┘        └────────────────┬────────────────┘   │
-└─────────────────┼───────────────────────────────────────┼────────────────────┘
-                  │                                       │
-                  ▼                                       ▼
-┌─────────────────────────────────┐      ┌─────────────────────────────────────┐
-│   src/features/artisans/        │      │  src/features/pos/ & inventory/     │
-│  • Editorial Hero & Catalog     │      │  • usePosWorkspace State Hook       │
-│  • Product Customizer & Bag     │      │  • 8 Focused Tab Views              │
-│  • Workshop Drawers & Tracker   │      │  • 10 Extracted Action/Audit Modals │
-│  • Localized BD Checkout        │      │  • Standalone Audit Console Table   │
-└─────────────────┬───────────────┘      └────────────────┬────────────────────┘
-                  │                                       │
-                  └───────────────────┬───────────────────┘
-                                      ▼
-┌──────────────────────────────────────────────────────────────────────────────┐
-│                 SHARED API GATEWAY, RBAC & PERSISTENCE CORE                  │
-│                                                                              │
-│  • src/middleware.ts & src/lib/permissions.ts (RBAC + SaaS Tier Guard)       │
-│  • src/app/api/v1/* (Products, Orders, Webhooks, Inventory Sync, Batch Sync) │
-│  • src/lib/db/* & drizzle/ (Drizzle ORM + Cloudflare D1 / Memory Fallback)   │
-│  • src/lib/offline-db.ts + public/sw.js (IndexedDB + Background Sync PWA)    │
-└──────────────────────────────────────────────────────────────────────────────┘
+/
+├── turbo.json                  # Task graph (build, dev, lint, typecheck)
+├── package.json                # Root workspaces: ["apps/*", "packages/*"]
+├── apps/
+│   ├── storefront/             # @waw/storefront — Astro 7.4 + React 19 Islands (Port 4321)
+│   └── dashboard/              # @waw/dashboard  — Next.js 16 + Drizzle/PostgreSQL + REST API (Port 3000)
+├── packages/
+│   └── contracts/              # @waw/contracts  — Stateless HTTP DTOs, Zod schemas, REST client
+└── docs/                       # Platform architecture, data models, features, roadmap
 ```
 
----
+### Strict Ownership Boundaries
 
-## 3. Feature-Sliced Directory Plan
+1. **Database Ownership (`apps/dashboard` only)**:
+   - All PostgreSQL tables (`src/lib/db/schema.ts`), Drizzle configuration (`drizzle.config.ts`), migrations (`drizzle/`), and database drivers (`@neondatabase/serverless`, `drizzle-orm`) live strictly inside `apps/dashboard`.
+   - `apps/storefront` and `packages/contracts` contain **zero** database or ORM dependencies.
 
-The codebase enforces a clean **Feature-Sliced Architecture** inside `src/`:
+2. **Public Storefront (`apps/storefront`, Port `4321`)**:
+   - Built with **Astro v7.4** (`output: 'server'` via `@astrojs/node`), Tailwind CSS v4 (`@tailwindcss/vite`), and targeted **React 19 Islands** (`@astrojs/react`).
+   - Communicates exclusively with `apps/dashboard` over HTTP via the typed REST client exported from `@waw/contracts`.
 
-```text
-├── docs/                                # Standardized engineering & product documentation
-│   ├── architecture.md                  # System design, directory rules & data flows (this file)
-│   ├── data-models.md                   # Relational D1 schema, API payloads & IndexedDB stores
-│   ├── features.md                      # Storefront + WAW-POS feature catalog
-│   ├── requirements.md                  # Functional & non-functional system requirements
-│   ├── roadmap.md                       # Completed phases & future delivery milestones
-│   ├── tech-stack.md                    # Runtime, UI, database & PWA technology stack
-│   └── user-stories.md                  # Shopper, cashier, manager & owner user stories
-│
-├── drizzle/                             # SQL database migrations (Drizzle Kit)
-├── public/
-│   ├── images/artisans/                 # Single source of truth for storefront imagery
-│   ├── icons/                           # PWA app icons
-│   ├── manifest.json                    # Web App Manifest
-│   └── sw.js                            # Service Worker (caching + Background Sync API)
-│
-└── src/
-    ├── middleware.ts                    # Tenant, role & subscription tier enforcement for /api/*
-    ├── app/                             # Thin Next.js 15 App Router entry points
-    │   ├── layout.tsx                   # Root HTML shell, fonts & PWA metadata
-    │   ├── globals.css                  # Tailwind CSS v4 tokens & theme styles
-    │   ├── page.tsx                     # `/` — Artisans Market Storefront (SSR hydrated)
-    │   ├── pos/
-    │   │   ├── page.tsx                 # `/pos` — Unified WAW-POS Operations Workspace
-    │   │   └── inventory/
-    │   │       └── page.tsx             # `/pos/inventory` — Standalone Stock Audit Console
-    │   ├── dashboard/page.tsx           # Legacy redirect -> `/pos`
-    │   ├── inventory/page.tsx           # Legacy redirect -> `/pos/inventory`
-    │   └── api/
-    │       ├── health/route.ts          # Liveness probe
-    │       ├── orders/route.ts          # Order listing helper
-    │       └── v1/
-    │           ├── products/route.ts    # Shared catalog CRUD API
-    │           ├── orders/route.ts      # Storefront checkout & POS order ledger API
-    │           ├── orders/webhook/      # External Shopify/WooCommerce order webhook
-    │           ├── inventory/sync/      # Outbound e-commerce inventory sync bridge
-    │           └── sync/batch/          # Offline PWA batch synchronization endpoint
-    │
-    ├── components/
-    │   └── ui/                          # Reusable headless/Radix UI primitives (Button, Dialog, Table...)
-    │
-    ├── features/                        # Domain-owned feature slices
-    │   ├── artisans/                    # Storefront commerce slice
-    │   │   ├── types.ts                 # Storefront product, cart, order & workshop types
-    │   │   ├── data/artisans-catalog.ts # Heritage catalog mapper, workshops & currency utils
-    │   │   └── components/              # ArtisansStorefront, Header, CartDrawer, CheckoutModal,
-    │   │                                # ProductDetailModal, WorkshopDrawer, OrderTrackerModal
-    │   │
-    │   ├── pos/                         # Unified WAW-POS backoffice slice
-    │   │   ├── types.ts                 # POSProduct, CartItem, SaleTransaction, SyncLog...
-    │   │   ├── data/initial-data.ts     # Store outlets & offline seed datasets
-    │   │   ├── hooks/usePosWorkspace.ts # Consolidated POS state, RBAC, cart & offline sync hook
-    │   │   └── components/
-    │   │       ├── PosWorkspace.tsx     # Top-level POS workspace orchestrator
-    │   │       ├── PosHeader.tsx        # App bar, tab nav, offline banner, role/store switchers
-    │   │       ├── shared/              # InventorySalesSummary, EcommerceOrdersLogistics, ResellerHub
-    │   │       ├── views/               # 8 modular tab views (Register, Catalog, Sales, Expenses,
-    │   │       │                        # Reports, Ecommerce, Reseller, Subscriptions)
-    │   │       └── dialogs/             # 10 focused dialogs (Checkout, Receipt, AddProduct,
-    │   │                                # AddExpense, StockTransfer, Labels, ShiftAudit,
-    │   │                                # AccessRestricted, BulkInventory, OfflineSyncModal)
-    │   │
-    │   └── inventory/                   # Standalone Inventory & Stock Audit slice (`/pos/inventory`)
-    │       └── components/              # InventoryClient, ProductTable, ProductForm, SummaryCards,
-    │                                    # AddProductDialog, BarcodeLookup, LabelPrinter, AuditLogTable
-    │
-    └── lib/                             # Cross-cutting infrastructure & domain services
-        ├── actions/products.ts          # Next.js Server Actions for inventory mutations
-        ├── db/                          # Drizzle schema (`schema.ts`) & repository (`products.ts`)
-        ├── api-guard.ts                 # Request authorization helper
-        ├── background-sync.ts           # Automatic reconnect & manual batch sync engine
-        ├── offline-db.ts                # Client IndexedDB wrapper for offline queues & catalog cache
-        ├── permissions.ts               # Role-based permissions & subscription tier definitions
-        └── utils.ts                     # Shared className & formatting helpers
-```
+3. **Operations Platform & REST API (`apps/dashboard`, Port `3000`)**:
+   - Built with **Next.js 16** (App Router, Turbopack, `src/proxy.ts` edge proxy).
+   - Serves the versioned REST API under `/api/v1/*` and hosts all operational consoles:
+     - `/` — Operations Command Hub
+     - `/pos` — WAW-POS Offline-First Register (PWA + IndexedDB + Background Sync)
+     - `/pos/inventory` — Stock Audit & Barcode Console
+     - `/seller` — Artisan Seller Studio (with Gemini 4 Hydrogen AI story assist)
+     - `/admin` — Marketplace Governance & Admin Console
+     - `/shipping` — Bangladesh Delivery Zones, Couriers & Tracking Console
 
 ---
 
-## 4. Routing & Boundary Conventions
+## 2. Industry-Standard REST API Architecture (`/api/v1/*`)
 
-| Route | Responsibility | Notes |
-| --- | --- | --- |
-| `/` | **Artisans Market Storefront** | Server-renders initial catalog from `getProducts()` and hydrates live stock from `/api/v1/products`. |
-| `/pos` | **WAW-POS Unified Backoffice** | Houses all 8 operational modules (Register, Catalog, Sales, Expenses, Reports, E-Commerce, Resellers, RBAC). |
-| `/pos/inventory` | **Inventory & Stock Audit Console** | Deep-link server-action console for barcode lookup, thumbnail editing, bulk stock mutations, and immutable audit logs. |
-| `/dashboard` | Legacy Redirect | Server-redirects permanently/cleanly to `/pos`. |
-| `/inventory` | Legacy Redirect | Server-redirects cleanly to `/pos/inventory`. |
-| `/api/v1/*` | REST API Gateway | Protected by `src/middleware.ts` RBAC and tier checks. |
+Every endpoint under `apps/dashboard/src/app/api/v1/` enforces consistent HTTP semantics:
 
-### Architectural Guardrails
-1. **No Root-Level UI Code**: All application logic and components live strictly inside `src/`.
-2. **Feature Isolation**: Feature slices (`src/features/<domain>`) own their domain components, hooks, types, and seed helpers. Shared design primitives stay in `src/components/ui/`, and cross-feature infrastructure stays in `src/lib/`.
-3. **Thin App Router Files**: Route files under `src/app/` only handle data loading, redirects, metadata, and composing feature entry components.
-4. **Single Media Source**: Static storefront imagery resides exclusively under `public/images/artisans/`.
+- **Uniform Success Envelopes**:
+  - Single resource: `{ data: T, meta: { requestId, timestamp, version: "v1" } }`
+  - Collection: `{ data: T[], meta: { requestId, timestamp, version: "v1", pagination: { page, limit, total, totalPages, hasNext, hasPrev } } }`
+- **RFC 9457 Problem Details (`application/problem+json`)**:
+  - All `4xx`/`5xx` errors return `{ type, title, status, detail, instance, code, requestId, errors? }`.
+- **HTTP Status Semantics**:
+  - `200 OK`, `201 Created` (with `Location` header), `204 No Content` (`DELETE`), `400 Bad Request`, `403 Forbidden`, `404 Not Found`, `409 Conflict` (duplicate SKU/coupon, insufficient stock), `422 Unprocessable Entity` (Zod schema or MOQ failures), `500`/`502`/`503`.
+- **Idempotency**:
+  - `POST /api/v1/orders`, `POST /api/v1/wholesale-orders`, and `POST /api/v1/sync` honor the `Idempotency-Key` header to prevent duplicate charges or double stock deductions on retries.
+- **CORS & Request Tracing (`src/proxy.ts`)**:
+  - Allowlists the Astro storefront origin (`STOREFRONT_ORIGIN`, default `http://localhost:4321`) with `Vary: Origin`, handles `OPTIONS` preflight, and attaches `X-Request-Id` to every response.
 
 ---
 
-## 5. Key Data Flows
+## 3. Data & Sync Flows
 
-### 5.1 Storefront Checkout ↔ WAW-POS Live Stock Sync
-1. Shopper selects items and customizations on `/` (`ArtisansStorefront`) and completes checkout in `CheckoutModal`.
-2. Client submits `POST /api/v1/orders` with customer details, payment channel (bKash, Nagad, AmarPay, COD), and line items.
-3. Server validates stock, atomically decrements product inventory in `src/lib/db/products.ts`, appends a stock audit log entry, and records the online order.
-4. Both `/` and `/pos` reflect updated inventory counts immediately on next hydration or refresh, and `/pos` surfaces the order inside the **E-Commerce & Logistics** tab.
+### Storefront Checkout → POS Stock Deduction
+1. Customer submits checkout in Astro (`:4321`) with a unique `Idempotency-Key`.
+2. Next.js (`:3000`) validates the payload via `@waw/contracts` Zod schemas and checks live stock.
+3. Stock is atomically deducted in the shared catalog, an immutable stock audit entry is recorded, a companion consignment shipment is booked (Pathao / Steadfast / RedX), and the sale is mirrored into the WAW-POS ledger.
 
-### 5.2 Offline-First POS & Background Synchronization
-1. On load, `usePosWorkspace` caches the active product catalog into IndexedDB (`waw_pos_offline_db`) via `cacheProductCatalog()`.
-2. When offline (real network drop or simulated offline toggle), POS sales, stock additions, and expense entries write immediately to durable IndexedDB queues (`pending_sales`, `pending_inventory`, `pending_expenses`).
-3. When connectivity returns—or when the user triggers **Sync to Database Now** in `OfflineSyncModal`—`performFullSync()` (`src/lib/background-sync.ts`) dispatches queued records to `POST /api/v1/sync/batch`, clears confirmed entries, and appends an entry to `sync_history_logs`.
-4. `public/sw.js` caches static assets and listens for the `waw-pos-sync` Background Sync tag to coordinate background flushes.
+### Offline-First POS Register Sync
+1. Cashiers record sales, stock counts, and expenses in IndexedDB while offline.
+2. On reconnect or manual trigger, `background-sync.ts` flushes pending batches to `POST /api/v1/sync` with an `Idempotency-Key`.
+3. Server reconciles mutations into PostgreSQL and returns a refreshed catalog snapshot for local cache hydration.
+
+### Server-Side AI Proxy (Gemini 4 Hydrogen)
+- `POST /api/v1/ai/craft-advisor` (called by Astro storefront modal) and `POST /api/v1/ai/product-story` (called by Seller Studio) invoke `@google/genai` strictly on the Next.js server using `process.env.GEMINI_API_KEY` and model `gemini-4-hydrogen`.

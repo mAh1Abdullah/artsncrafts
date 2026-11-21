@@ -1,0 +1,138 @@
+---
+import '../styles/global.css';
+import { StorefrontHeaderControls } from '../components/StorefrontHeaderControls';
+import { CartAndCheckoutIsland } from '../components/CartAndCheckoutIsland';
+import { CraftAdvisorIsland } from '../components/CraftAdvisorIsland';
+import { ToastIsland } from '../components/ToastIsland';
+import { getDashboardUrl } from '../lib/api';
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+
+const {
+  title = "The Artisan's Market — Handcrafted Bangladeshi Heritage",
+  description = "Discover museum-grade Jamdani sarees, Dhamrai terracotta, Chittagong teak woodcraft, and Sylhet silver filigree crafted directly by verified workshops.",
+} = Astro.props;
+
+const dashboardUrl = getDashboardUrl();
+const currentPath = Astro.url.pathname;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body class="min-h-screen flex flex-col bg-[#FAF9F6] text-[#221E1B] antialiased">
+    <!-- Single-Row 3-Zone Header -->
+    <header class="sticky top-0 z-30 bg-[#FAF9F6]/95 backdrop-blur-sm border-b border-[#E5DDD2]">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-18 flex items-center justify-between gap-4">
+        <!-- Zone 1: Brand Mark -->
+        <a href="/" class="flex items-center gap-2.5 shrink-0">
+          <span class="h-8 w-8 rounded-md bg-[#221E1B] text-[#FAF9F6] font-editorial font-semibold text-base flex items-center justify-center">
+            A
+          </span>
+          <span class="font-editorial text-lg sm:text-xl font-semibold tracking-tight text-[#221E1B]">
+            The Artisan's Market
+          </span>
+        </a>
+
+        <!-- Zone 2: Primary Links -->
+        <nav class="hidden md:flex items-center gap-7 text-sm font-medium">
+          <a
+            href="/#collections"
+            class={currentPath === '/' ? 'text-[#B84A27]' : 'text-[#574E46] hover:text-[#221E1B] transition-colors'}
+          >
+            Collections
+          </a>
+          <a
+            href="/raw-materials"
+            class={currentPath === '/raw-materials' ? 'text-[#B84A27]' : 'text-[#574E46] hover:text-[#221E1B] transition-colors'}
+          >
+            Raw Materials
+          </a>
+          <a
+            href="/sell"
+            class={currentPath === '/sell' ? 'text-[#B84A27]' : 'text-[#574E46] hover:text-[#221E1B] transition-colors'}
+          >
+            Sell Craft
+          </a>
+          <a
+            href="/account"
+            class={currentPath === '/account' ? 'text-[#B84A27]' : 'text-[#574E46] hover:text-[#221E1B] transition-colors'}
+          >
+            Account
+          </a>
+        </nav>
+
+        <!-- Zone 3: Interactive Utility Controls -->
+        <StorefrontHeaderControls client:load />
+      </div>
+    </header>
+
+    <main class="flex-1">
+      <slot />
+    </main>
+
+    <!-- Editorial Footer -->
+    <footer class="mt-24 border-t border-[#E5DDD2] bg-[#F3EFE9]">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14 grid grid-cols-1 md:grid-cols-4 gap-10 text-sm">
+        <div class="md:col-span-2 space-y-3">
+          <div class="font-editorial text-xl font-semibold text-[#221E1B]">
+            The Artisan's Market
+          </div>
+          <p class="text-[#574E46] max-w-md leading-relaxed">
+            Direct-from-workshop marketplace connecting master potters, Sonargaon Jamdani weavers, Chittagong woodcarvers, and Sylhet silversmiths with collectors worldwide.
+          </p>
+        </div>
+
+        <div class="space-y-2.5">
+          <div class="text-xs font-semibold uppercase tracking-wider text-[#6E6359]">
+            Marketplace
+          </div>
+          <ul class="space-y-2 text-[#4A413A]">
+            <li><a href="/#collections" class="hover:text-[#B84A27]">Handcrafted Catalog</a></li>
+            <li><a href="/raw-materials" class="hover:text-[#B84A27]">Raw Materials Wholesale</a></li>
+            <li><a href="/sell" class="hover:text-[#B84A27]">Open an Artisan Studio</a></li>
+            <li><a href="/account" class="hover:text-[#B84A27]">Orders & Tracking</a></li>
+          </ul>
+        </div>
+
+        <div class="space-y-2.5">
+          <div class="text-xs font-semibold uppercase tracking-wider text-[#6E6359]">
+            Merchant & Operations
+          </div>
+          <ul class="space-y-2 text-[#4A413A]">
+            <li><a href={`${dashboardUrl}/pos`} target="_blank" rel="noreferrer" class="hover:text-[#B84A27]">WAW-POS Register</a></li>
+            <li><a href={`${dashboardUrl}/seller`} target="_blank" rel="noreferrer" class="hover:text-[#B84A27]">Seller Studio</a></li>
+            <li><a href={`${dashboardUrl}/admin`} target="_blank" rel="noreferrer" class="hover:text-[#B84A27]">Marketplace Admin</a></li>
+            <li><a href={`${dashboardUrl}/shipping`} target="_blank" rel="noreferrer" class="hover:text-[#B84A27]">Shipping & Couriers</a></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="border-t border-[#E5DDD2] py-5 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-[#6E6359]">
+        <span>© {new Date().getFullYear()} The Artisan's Market & WAW-POS</span>
+        <span>Built with Astro 7.4 · Powered by Next.js 16 REST v1 API</span>
+      </div>
+    </footer>
+
+    <!-- Persistent Global React Islands -->
+    <CartAndCheckoutIsland client:load />
+    <CraftAdvisorIsland client:load />
+    <ToastIsland client:load />
+  </body>
+</html>

@@ -1,0 +1,31 @@
+{
+  "name": "@waw/storefront",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev --port 4321 --host 0.0.0.0",
+    "build": "astro build",
+    "preview": "astro preview --port 4321 --host 0.0.0.0",
+    "start": "node ./dist/server/entry.mjs",
+    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@astrojs/node": "^11.1.14",
+    "@astrojs/react": "^7.1.9",
+    "@tailwindcss/vite": "^4.3.5",
+    "@waw/contracts": "*",
+    "astro": "7.4.1",
+    "lucide-react": "^0.525.0",
+    "motion": "^14.14.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tailwindcss": "^4"
+  },
+  "devDependencies": {
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "typescript": "^5"
+  }
+}

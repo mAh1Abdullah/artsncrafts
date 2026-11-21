@@ -36,6 +36,17 @@ yarn-error.log*
 # vercel
 .vercel
 
+# monorepo & build caches
+.turbo/
+dist/
+apps/*/.next/
+apps/*/out/
+apps/*/.astro/
+apps/*/dist/
+packages/*/dist/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+apps/*/next-env.d.ts
+
