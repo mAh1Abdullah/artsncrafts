@@ -2,10 +2,12 @@ import {
   BDT_PER_USD,
   formatBDT,
   formatUSD,
+  type BuyerProfileDTO,
   type ProductDTO,
 } from '@waw/contracts';
 
 export type CurrencyCode = 'BDT' | 'USD';
+export type StorefrontRole = 'user' | 'vendor_user' | 'wholesaler' | 'admin';
 
 export interface CartSelection {
   optionLabel: string;
@@ -35,10 +37,18 @@ export interface ToastItem {
   message: string;
 }
 
+export type BuyerNotification = BuyerProfileDTO['notifications'][number];
+
 interface StoreState {
   cart: CartItem[];
   currency: CurrencyCode;
   wishlistIds: string[];
+  favoriteShopIds: string[];
+  activeRole: StorefrontRole;
+  searchQuery: string;
+  selectedCategory: string;
+  quickViewProduct: ProductDTO | null;
+  notifications: BuyerNotification[];
   cartOpen: boolean;
   advisorOpen: boolean;
   toasts: ToastItem[];
@@ -47,11 +57,19 @@ interface StoreState {
 const STORAGE_CART_KEY = 'waw_storefront_cart_v1';
 const STORAGE_CURRENCY_KEY = 'waw_storefront_currency_v1';
 const STORAGE_WISHLIST_KEY = 'waw_storefront_wishlist_v1';
+const STORAGE_ROLE_KEY = 'waw_storefront_role_v1';
+const STORAGE_FAV_SHOPS_KEY = 'waw_storefront_fav_shops_v1';
 
 const state: StoreState = {
   cart: [],
   currency: 'BDT',
   wishlistIds: ['art-2', 'art-4'],
+  favoriteShopIds: [],
+  activeRole: 'user',
+  searchQuery: '',
+  selectedCategory: 'all',
+  quickViewProduct: null,
+  notifications: [],
   cartOpen: false,
   advisorOpen: false,
   toasts: [],
@@ -72,6 +90,11 @@ function persist() {
     window.localStorage.setItem(
       STORAGE_WISHLIST_KEY,
       JSON.stringify(state.wishlistIds)
+    );
+    window.localStorage.setItem(STORAGE_ROLE_KEY, state.activeRole);
+    window.localStorage.setItem(
+      STORAGE_FAV_SHOPS_KEY,
+      JSON.stringify(state.favoriteShopIds)
     );
   } catch {
     // Ignore storage quota errors
@@ -96,6 +119,20 @@ export function hydrateStoreOnce() {
       const parsed = JSON.parse(rawWishlist);
       if (Array.isArray(parsed)) state.wishlistIds = parsed;
     }
+    const rawRole = window.localStorage.getItem(STORAGE_ROLE_KEY);
+    if (
+      rawRole === 'user' ||
+      rawRole === 'vendor_user' ||
+      rawRole === 'wholesaler' ||
+      rawRole === 'admin'
+    ) {
+      state.activeRole = rawRole;
+    }
+    const rawFavShops = window.localStorage.getItem(STORAGE_FAV_SHOPS_KEY);
+    if (rawFavShops) {
+      const parsed = JSON.parse(rawFavShops);
+      if (Array.isArray(parsed)) state.favoriteShopIds = parsed;
+    }
   } catch {
     // Ignore malformed local storage
   }
@@ -116,6 +153,12 @@ export function getStoreSnapshot(): StoreState {
     cart: [...state.cart],
     currency: state.currency,
     wishlistIds: [...state.wishlistIds],
+    favoriteShopIds: [...state.favoriteShopIds],
+    activeRole: state.activeRole,
+    searchQuery: state.searchQuery,
+    selectedCategory: state.selectedCategory,
+    quickViewProduct: state.quickViewProduct,
+    notifications: [...state.notifications],
     cartOpen: state.cartOpen,
     advisorOpen: state.advisorOpen,
     toasts: [...state.toasts],
@@ -151,6 +194,32 @@ export function dismissToast(id: string) {
 export function setCurrency(currency: CurrencyCode) {
   state.currency = currency;
   persist();
+  emit();
+}
+
+export function setActiveRole(role: StorefrontRole) {
+  state.activeRole = role;
+  persist();
+  emit();
+}
+
+export function setSearchQuery(q: string) {
+  state.searchQuery = q;
+  emit();
+}
+
+export function setSelectedCategory(category: string) {
+  state.selectedCategory = category;
+  emit();
+}
+
+export function openQuickView(product: ProductDTO | null) {
+  state.quickViewProduct = product;
+  emit();
+}
+
+export function setNotifications(notifications: BuyerNotification[]) {
+  state.notifications = [...notifications];
   emit();
 }
 
@@ -252,6 +321,18 @@ export function toggleLocalWishlist(productId: string): boolean {
     state.wishlistIds = state.wishlistIds.filter((id) => id !== productId);
   } else {
     state.wishlistIds = [productId, ...state.wishlistIds];
+  }
+  persist();
+  emit();
+  return !exists;
+}
+
+export function toggleFavoriteShop(shopId: string): boolean {
+  const exists = state.favoriteShopIds.includes(shopId);
+  if (exists) {
+    state.favoriteShopIds = state.favoriteShopIds.filter((id) => id !== shopId);
+  } else {
+    state.favoriteShopIds = [shopId, ...state.favoriteShopIds];
   }
   persist();
   emit();

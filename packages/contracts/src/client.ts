@@ -11,17 +11,21 @@ import type {
   CourierSuggestionDTO,
   CraftAdvisorResponseDTO,
   CreateOrderRequest,
+  CreateRawMaterialRequest,
   CreateReviewRequest,
   CreateVendorApplication,
   CreateWholesaleOrderRequest,
   DeliveryZoneDTO,
+  MarkNotificationsReadRequest,
   OrderDTO,
   ProductDTO,
   ProductStoryResponseDTO,
   RawMaterialDTO,
   ReviewDTO,
+  UpdateBuyerProfileRequest,
   VendorDTO,
   WholesaleOrderDTO,
+  WholesaleOrderStatus,
 } from './dto.js';
 
 export interface WawApiClientOptions {
@@ -127,6 +131,17 @@ export function createWawApiClient(options: WawApiClientOptions) {
       return request(`/api/v1/raw-materials${buildQuery(params)}`);
     },
 
+    createRawMaterial(body: CreateRawMaterialRequest): Promise<ApiSuccess<RawMaterialDTO>> {
+      return request('/api/v1/raw-materials', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+    },
+
+    getWholesaleOrders(): Promise<ApiList<WholesaleOrderDTO>> {
+      return request('/api/v1/wholesale-orders');
+    },
+
     createWholesaleOrder(
       body: CreateWholesaleOrderRequest,
       idempotencyKey?: string
@@ -135,6 +150,16 @@ export function createWawApiClient(options: WawApiClientOptions) {
         method: 'POST',
         body: JSON.stringify(body),
         idempotencyKey,
+      });
+    },
+
+    updateWholesaleOrderStatus(
+      id: string,
+      status: WholesaleOrderStatus
+    ): Promise<ApiSuccess<WholesaleOrderDTO>> {
+      return request(`/api/v1/wholesale-orders/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status }),
       });
     },
 
@@ -182,6 +207,32 @@ export function createWawApiClient(options: WawApiClientOptions) {
 
     getBuyerProfile(buyerId: string): Promise<ApiSuccess<BuyerProfileDTO>> {
       return request(`/api/v1/buyers/${encodeURIComponent(buyerId)}/profile`);
+    },
+
+    updateBuyerProfile(
+      buyerId: string,
+      body: UpdateBuyerProfileRequest
+    ): Promise<ApiSuccess<BuyerProfileDTO>> {
+      return request(`/api/v1/buyers/${encodeURIComponent(buyerId)}/profile`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      });
+    },
+
+    verifyBuyerPhone(buyerId: string): Promise<ApiSuccess<BuyerProfileDTO>> {
+      return request(`/api/v1/buyers/${encodeURIComponent(buyerId)}/verify-phone`, {
+        method: 'POST',
+      });
+    },
+
+    markBuyerNotificationsRead(
+      buyerId: string,
+      body: MarkNotificationsReadRequest
+    ): Promise<ApiSuccess<BuyerProfileDTO>> {
+      return request(`/api/v1/buyers/${encodeURIComponent(buyerId)}/notifications/read`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
     },
 
     toggleWishlist(

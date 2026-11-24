@@ -24,7 +24,7 @@ interface OperationsShellProps {
 }
 
 const NAV_ITEMS = [
-  { href: "/", label: "Operations Hub", icon: LayoutDashboard },
+  { href: "/ops", label: "Operations Hub", icon: LayoutDashboard },
   { href: "/pos", label: "WAW-POS Register", icon: ShoppingCart },
   { href: "/pos/inventory", label: "Stock Audit Console", icon: Boxes },
   { href: "/seller", label: "Seller Studio", icon: Store },
@@ -41,7 +41,7 @@ export function OperationsShell({
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const storefrontUrl =
-    process.env.NEXT_PUBLIC_STOREFRONT_URL || "http://localhost:4321";
+    process.env.NEXT_PUBLIC_STOREFRONT_URL || "/storefront";
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 flex">
@@ -68,8 +68,8 @@ export function OperationsShell({
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
             const isActive =
-              item.href === "/"
-                ? pathname === "/"
+              item.href === "/ops"
+                ? pathname === "/ops"
                 : pathname === item.href ||
                   (item.href !== "/pos" && pathname.startsWith(item.href));
             return (
@@ -92,16 +92,14 @@ export function OperationsShell({
         <div className="p-3 border-t border-slate-200 space-y-2">
           <a
             href={storefrontUrl}
-            target="_blank"
-            rel="noreferrer"
             className="flex items-center justify-between gap-2 px-3 py-2 rounded-md text-xs font-semibold bg-[#B84A27] text-white hover:bg-[#9c3d1f] transition-colors"
           >
             <span className="truncate">Open Astro Storefront</span>
-            <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+            <ArrowUpRight className="h-3.5 w-3.5 shrink-0" />
           </a>
           <div className="px-2 py-1 text-[11px] text-slate-500 flex items-center justify-between font-mono">
-            <span>API :3000</span>
-            <span>Web :4321</span>
+            <span>API /api/v1</span>
+            <span>Web /storefront</span>
           </div>
         </div>
       </aside>
@@ -149,8 +147,7 @@ export function OperationsShell({
             <div className="p-3 border-t border-slate-200">
               <a
                 href={storefrontUrl}
-                target="_blank"
-                rel="noreferrer"
+                onClick={() => setMobileOpen(false)}
                 className="flex items-center justify-between gap-2 px-3 py-2 rounded-md text-xs font-semibold bg-[#B84A27] text-white"
               >
                 <span>Open Astro Storefront</span>
@@ -187,8 +184,6 @@ export function OperationsShell({
             {action}
             <a
               href={storefrontUrl}
-              target="_blank"
-              rel="noreferrer"
               className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-xs font-medium text-slate-700 transition-colors"
             >
               <span>Storefront</span>

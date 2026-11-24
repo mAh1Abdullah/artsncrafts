@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { CheckCircle2, Loader2 } from 'lucide-react';
 import { ApiProblemError, type VendorDTO } from '@waw/contracts';
-import { getDashboardUrl, wawApi } from '../lib/api';
+import { getDashboardUrl, storefrontPath, wawApi } from '../lib/api';
 
 export function SellerSignupIsland() {
   const [displayName, setDisplayName] = useState('');
@@ -58,21 +58,19 @@ export function SellerSignupIsland() {
           <strong className="font-mono">{submittedVendor.status}</strong>. Once
           approved, your studio storefront will go live at{' '}
           <code className="font-mono text-[#B84A27]">
-            /shops/{submittedVendor.publicSlug}
+            /storefront/shops/{submittedVendor.publicSlug}
           </code>
           .
         </p>
         <div className="pt-2 flex flex-wrap gap-3">
           <a
             href={`${getDashboardUrl()}/admin`}
-            target="_blank"
-            rel="noreferrer"
             className="px-4 py-2 rounded-lg bg-[#221E1B] hover:bg-[#B84A27] text-white text-xs font-medium"
           >
-            Review in Admin Console (:3000/admin)
+            Review in Admin Console
           </a>
           <a
-            href="/"
+            href={storefrontPath('/')}
             className="px-4 py-2 rounded-lg border border-[#D8CFC3] text-xs font-medium text-[#221E1B]"
           >
             Back to Storefront

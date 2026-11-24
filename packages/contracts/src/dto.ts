@@ -217,6 +217,21 @@ export const CreateWholesaleOrderSchema = z.object({
 });
 export type CreateWholesaleOrderRequest = z.infer<typeof CreateWholesaleOrderSchema>;
 
+export const WholesaleOrderStatusSchema = z.enum([
+  'pending',
+  'accepted',
+  'processing',
+  'shipped',
+  'delivered',
+  'cancelled',
+]);
+export type WholesaleOrderStatus = z.infer<typeof WholesaleOrderStatusSchema>;
+
+export const UpdateWholesaleOrderStatusSchema = z.object({
+  status: WholesaleOrderStatusSchema,
+});
+export type UpdateWholesaleOrderStatusRequest = z.infer<typeof UpdateWholesaleOrderStatusSchema>;
+
 export interface WholesaleOrderDTO {
   id: string;
   orderNumber: string;
@@ -225,7 +240,7 @@ export interface WholesaleOrderDTO {
   shippingAddress: string;
   paymentMethod: string;
   totalAmountBdt: number;
-  status: 'pending' | 'accepted' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+  status: WholesaleOrderStatus;
   items: Array<{
     rawMaterialId: string;
     name: string;
@@ -495,11 +510,30 @@ export interface VendorSettlementDTO {
   createdAt: string;
 }
 
+export interface BuyerTrustEventDTO {
+  id: string;
+  eventType: string;
+  reason: string;
+  scoreDelta: number;
+  createdAt: string;
+}
+
+export interface BuyerStyleProfileDTO {
+  department: string;
+  sizeTops?: string;
+  sizeBottoms?: string;
+  sizeShoes?: string;
+  favoriteCrafts: string[];
+  preferredColors: string[];
+  consentVersion?: string | null;
+}
+
 export interface BuyerProfileDTO {
   id: string;
   name: string;
   email: string;
   phone: string;
+  phoneNumberVerified: boolean;
   walletBalanceBdt: number;
   trustScore: number;
   codEligible: boolean;
@@ -516,11 +550,8 @@ export interface BuyerProfileDTO {
     postalCode: string;
     isDefault: boolean;
   }>;
-  styleProfile: {
-    department: string;
-    favoriteCrafts: string[];
-    preferredColors: string[];
-  };
+  styleProfile: BuyerStyleProfileDTO;
+  trustEvents: BuyerTrustEventDTO[];
   notifications: Array<{
     id: string;
     title: string;
@@ -530,6 +561,29 @@ export interface BuyerProfileDTO {
     createdAt: string;
   }>;
 }
+
+export const UpdateBuyerProfileRequestSchema = z.object({
+  trustScore: z.coerce.number().min(0).max(100).optional(),
+  codEligible: z.boolean().optional(),
+  styleProfile: z
+    .object({
+      department: z.string().trim().min(1).max(120),
+      sizeTops: z.string().trim().max(32).optional(),
+      sizeBottoms: z.string().trim().max(32).optional(),
+      sizeShoes: z.string().trim().max(32).optional(),
+      favoriteCrafts: z.array(z.string().trim().max(60)).max(12),
+      preferredColors: z.array(z.string().trim().max(60)).max(12).optional(),
+      consentVersion: z.string().trim().max(32).nullable().optional(),
+    })
+    .optional(),
+});
+export type UpdateBuyerProfileRequest = z.infer<typeof UpdateBuyerProfileRequestSchema>;
+
+export const MarkNotificationsReadSchema = z.object({
+  notificationId: z.string().trim().min(1).optional(),
+  all: z.boolean().optional(),
+});
+export type MarkNotificationsReadRequest = z.infer<typeof MarkNotificationsReadSchema>;
 
 export interface AdminAuditLogDTO {
   id: string;

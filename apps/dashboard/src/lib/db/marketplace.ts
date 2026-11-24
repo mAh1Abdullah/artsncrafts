@@ -911,8 +911,9 @@ const buyerProfilesStore = new Map<string, BuyerProfileDTO>([
       name: 'Anika Rahman',
       email: 'anika@example.com',
       phone: '+8801712345678',
+      phoneNumberVerified: false,
       walletBalanceBdt: 1250,
-      trustScore: 94,
+      trustScore: 84,
       codEligible: true,
       riskLevel: 'low',
       wishlistProductIds: ['art-2', 'art-4'],
@@ -942,9 +943,36 @@ const buyerProfilesStore = new Map<string, BuyerProfileDTO>([
       ],
       styleProfile: {
         department: 'Home & Heritage Textiles',
+        sizeTops: 'M',
+        sizeBottoms: '30',
+        sizeShoes: '38',
         favoriteCrafts: ['Jamdani Weaving', 'Terracotta Pottery', 'Silver Filigree'],
         preferredColors: ['Alabaster', 'Terracotta', 'Forest Sage'],
+        consentVersion: '1.0',
       },
+      trustEvents: [
+        {
+          id: 'tev-101',
+          eventType: 'ORDER_DELIVERED_PREPAID',
+          reason: 'Completed prepaid delivery for WAW-BD-8902 with zero return disputes',
+          scoreDelta: 12,
+          createdAt: new Date(Date.now() - 86400000 * 5).toISOString(),
+        },
+        {
+          id: 'tev-102',
+          eventType: 'VERIFIED_REVIEW_SUBMITTED',
+          reason: 'Published verified review for Dhamrai Terracotta Water Pitcher',
+          scoreDelta: 4,
+          createdAt: new Date(Date.now() - 86400000 * 3).toISOString(),
+        },
+        {
+          id: 'tev-103',
+          eventType: 'ACCOUNT_INITIALIZED',
+          reason: 'Baseline collector trust standing established on Artisan’s Market',
+          scoreDelta: 68,
+          createdAt: '2026-01-12T09:00:00.000Z',
+        },
+      ],
       notifications: [
         {
           id: 'ntf-1',
@@ -1286,6 +1314,27 @@ export function createWholesaleOrderRecord(
 
   wholesaleOrdersStore = [order, ...wholesaleOrdersStore];
   return { order };
+}
+
+export function updateWholesaleOrderStatusRecord(
+  id: string,
+  status: WholesaleOrderDTO['status']
+): WholesaleOrderDTO | undefined {
+  const idx = wholesaleOrdersStore.findIndex((o) => o.id === id || o.orderNumber === id);
+  if (idx === -1) return undefined;
+  wholesaleOrdersStore[idx] = {
+    ...wholesaleOrdersStore[idx],
+    status,
+  };
+  appendAdminAuditLog({
+    actorName: 'Wholesale Supplier',
+    actorRole: 'wholesaler',
+    action: `wholesale_order.${status}`,
+    entityType: 'order',
+    entityId: wholesaleOrdersStore[idx].id,
+    reason: `Wholesale consignment ${wholesaleOrdersStore[idx].orderNumber} updated to ${status}`,
+  });
+  return wholesaleOrdersStore[idx];
 }
 
 // ============================================================================
@@ -1841,19 +1890,78 @@ export function getBuyerProfile(buyerId: string): BuyerProfileDTO {
 
 export function updateBuyerProfile(
   buyerId: string,
-  patch: { trustScore?: number; codEligible?: boolean; styleProfile?: BuyerProfileDTO['styleProfile'] }
+  patch: {
+    trustScore?: number;
+    codEligible?: boolean;
+    styleProfile?: Partial<BuyerProfileDTO['styleProfile']>;
+  }
 ): BuyerProfileDTO {
   const profile = getBuyerProfile(buyerId);
   if (patch.trustScore !== undefined) {
     profile.trustScore = Math.max(0, Math.min(100, Math.round(patch.trustScore)));
     profile.riskLevel =
       profile.trustScore >= 75 ? 'low' : profile.trustScore >= 45 ? 'medium' : 'high';
-  }
-  if (patch.codEligible !== undefined) {
+    profile.codEligible = patch.codEligible ?? profile.trustScore >= 65;
+  } else if (patch.codEligible !== undefined) {
     profile.codEligible = patch.codEligible;
   }
   if (patch.styleProfile) {
-    profile.styleProfile = patch.styleProfile;
+    profile.styleProfile = {
+      ...profile.styleProfile,
+      ...patch.styleProfile,
+      preferredColors: patch.styleProfile.preferredColors ?? profile.styleProfile.preferredColors,
+    };
+  }
+  return profile;
+}
+
+export function verifyBuyerPhone(buyerId: string): BuyerProfileDTO {
+  const profile = getBuyerProfile(buyerId);
+  if (profile.phoneNumberVerified) {
+    return profile;
+  }
+  const previousScore = profile.trustScore;
+  const nextScore = Math.min(100, previousScore + 10);
+  const delta = nextScore - previousScore;
+  profile.phoneNumberVerified = true;
+  profile.trustScore = nextScore;
+  profile.codEligible = nextScore >= 65;
+  profile.riskLevel = nextScore >= 75 ? 'low' : nextScore >= 45 ? 'medium' : 'high';
+  profile.trustEvents = [
+    {
+      id: createCuid('tev'),
+      eventType: 'PHONE_VERIFIED',
+      reason: `Verified Bangladeshi mobile number (${profile.phone}) via SMS confirmation`,
+      scoreDelta: delta,
+      createdAt: new Date().toISOString(),
+    },
+    ...profile.trustEvents,
+  ];
+  profile.notifications = [
+    {
+      id: createCuid('ntf'),
+      title: 'Mobile Number Verified (+10 Trust Pts)',
+      body: `Your buyer trust score rose to ${nextScore}/100. Cash on Delivery protection is active.`,
+      type: 'trust_update',
+      read: false,
+      createdAt: new Date().toISOString(),
+    },
+    ...profile.notifications,
+  ];
+  return profile;
+}
+
+export function markBuyerNotificationsRead(
+  buyerId: string,
+  opts: { notificationId?: string; all?: boolean }
+): BuyerProfileDTO {
+  const profile = getBuyerProfile(buyerId);
+  if (opts.all) {
+    profile.notifications = profile.notifications.map((n) => ({ ...n, read: true }));
+  } else if (opts.notificationId) {
+    profile.notifications = profile.notifications.map((n) =>
+      n.id === opts.notificationId ? { ...n, read: true } : n
+    );
   }
   return profile;
 }

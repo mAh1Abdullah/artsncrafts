@@ -1,12 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Loader2, Sparkles, X } from 'lucide-react';
+import { ArrowRight, Bot, Send, Sparkles, X } from 'lucide-react';
 import { ApiProblemError, type CraftAdvisorResponseDTO } from '@waw/contracts';
 import { wawApi } from '../lib/api';
-import {
-  getStoreSnapshot,
-  setAdvisorOpen,
-  subscribeStore,
-} from '../lib/store';
+import { getStoreSnapshot, setAdvisorOpen, subscribeStore } from '../lib/store';
 
 export function CraftAdvisorIsland() {
   const [open, setOpen] = useState(false);
@@ -35,7 +31,7 @@ export function CraftAdvisorIsland() {
       if (err instanceof ApiProblemError) {
         setError(err.problem.detail);
       } else {
-        setError((err as Error).message || 'Unable to reach Craft Advisor.');
+        setError('Unable to reach the AI Craft Advisor right now.');
       }
     } finally {
       setLoading(false);
@@ -43,120 +39,138 @@ export function CraftAdvisorIsland() {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div
+      className="fixed inset-0 z-50 overflow-y-auto bg-stone-950/70 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6"
+      role="dialog"
+      aria-modal="true"
+      aria-label="AI Craft & Customization Advisor"
+      onClick={() => setAdvisorOpen(false)}
+    >
       <div
-        className="fixed inset-0 bg-[#221E1B]/50 backdrop-blur-[2px]"
-        onClick={() => setAdvisorOpen(false)}
-      />
-      <div className="relative z-10 w-full max-w-xl rounded-xl bg-[#FAF9F6] border border-[#DED6CA] shadow-2xl overflow-hidden">
-        <div className="px-6 py-4 border-b border-[#E5DDD2] flex items-center justify-between bg-[#F3EFE9]">
-          <div className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-[#B84A27]" />
-            <h2 className="font-editorial text-lg font-semibold text-[#221E1B]">
-              Bespoke Craft Advisor
-            </h2>
+        className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-8 space-y-6 shadow-2xl border border-stone-200 relative text-stone-800"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          onClick={() => setAdvisorOpen(false)}
+          aria-label="Close AI Craft Advisor"
+          className="absolute top-4 right-4 p-2 rounded-full bg-stone-100 hover:bg-stone-200 text-stone-700 transition-colors cursor-pointer"
+        >
+          <X className="w-5 h-5" />
+        </button>
+
+        {/* Header */}
+        <div className="flex items-center gap-3 pr-8">
+          <div className="w-12 h-12 rounded-2xl bg-[#2E2A25] text-amber-200 flex items-center justify-center shadow-lg shrink-0">
+            <Sparkles className="w-6 h-6 text-[#C85A32]" />
           </div>
-          <button
-            type="button"
-            onClick={() => setAdvisorOpen(false)}
-            className="p-1.5 rounded-md text-[#6E6359] hover:text-[#221E1B]"
-            aria-label="Close Craft Advisor"
-          >
-            <X className="h-4 w-4" />
-          </button>
+          <div>
+            <h2 className="font-editorial text-xl font-bold text-[#2E2A25]">
+              AI Craft &amp; Customization Advisor
+            </h2>
+            <p className="text-xs text-stone-500">
+              Describe your custom gift idea, heritage motif, or raw material
+              needs.
+            </p>
+          </div>
         </div>
 
-        <div className="p-6 space-y-5 max-h-[80vh] overflow-y-auto">
-          <p className="text-sm text-[#574E46] leading-relaxed">
-            Describe a gift, dining centerpiece, or heirloom textile you have in
-            mind. Our server-side advisor matches your idea to traditional
-            Bangladeshi craft clusters and materials.
-          </p>
-
-          <form onSubmit={handleSubmit} className="space-y-3">
+        {/* Input Form */}
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div>
+            <label
+              htmlFor="craft-advisor-prompt"
+              className="text-xs font-semibold text-stone-800 block mb-1"
+            >
+              What bespoke piece or craft project do you want to create?
+            </label>
             <textarea
+              id="craft-advisor-prompt"
               rows={3}
               required
-              minLength={5}
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
-              placeholder="e.g. A housewarming dining table centerpiece combining natural clay and brass engraving for a wedding gift..."
-              className="w-full rounded-lg border border-[#D8CFC3] bg-white px-3.5 py-2.5 text-sm text-[#221E1B] focus:border-[#B84A27] focus:outline-none"
+              placeholder="e.g. 'I want a Chittagong teakwood wall clock with brass inlays and a custom Bengali verse engraved on the rim for my parents' anniversary...'"
+              className="w-full p-3 bg-stone-50 border border-stone-300 rounded-2xl text-xs focus:ring-2 focus:ring-[#C85A32]/30 focus:border-[#C85A32] focus:outline-none"
             />
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex flex-wrap gap-1.5">
-                {[
-                  'Bridal Jamdani shawl',
-                  'Engraved Dhamrai clay pitcher',
-                  'Teak tea serving tray',
-                ].map((sample) => (
-                  <button
-                    key={sample}
-                    type="button"
-                    onClick={() => setPrompt(sample)}
-                    className="text-xs px-2.5 py-1 rounded border border-[#E2D9CC] bg-white hover:border-[#221E1B] text-[#574E46]"
-                  >
-                    {sample}
-                  </button>
-                ))}
-              </div>
-              <button
-                type="submit"
-                disabled={loading}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#B84A27] hover:bg-[#9c3d1f] text-white text-sm font-medium disabled:opacity-50 shrink-0"
-              >
-                {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-                <span>Consult</span>
-              </button>
-            </div>
-          </form>
+          </div>
 
           {error && (
-            <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
+            <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">
               {error}
             </div>
           )}
 
-          {result && (
-            <div className="rounded-lg border border-[#E2D9CC] bg-white p-5 space-y-4">
-              <div>
-                <div className="text-[11px] font-semibold uppercase tracking-wider text-[#B84A27]">
-                  Craft Recommendation
-                </div>
-                <p className="mt-1 text-sm text-[#221E1B] leading-relaxed">
-                  {result.craftRecommendation}
-                </p>
-              </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full py-3 bg-[#2E2A25] hover:bg-[#C85A32] text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md disabled:opacity-50"
+          >
+            {loading ? (
+              <span className="flex items-center gap-2">
+                <span className="w-4 h-4 border-2 border-amber-300 border-t-transparent rounded-full animate-spin" />
+                Analyzing Craft Materials &amp; Artisans...
+              </span>
+            ) : (
+              <>
+                <Send className="w-4 h-4 text-amber-300" />
+                Get AI Artisan Recommendation
+              </>
+            )}
+          </button>
+        </form>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-3 border-t border-[#EFE8DE]">
-                <div>
-                  <div className="text-[11px] font-semibold uppercase tracking-wider text-[#6E6359]">
-                    Recommended Materials
-                  </div>
-                  <ul className="mt-1.5 space-y-1 text-sm text-[#221E1B]">
-                    {result.recommendedMaterials.map((mat) => (
-                      <li key={mat}>• {mat}</li>
-                    ))}
-                  </ul>
-                </div>
-                <div>
-                  <div className="text-[11px] font-semibold uppercase tracking-wider text-[#6E6359]">
-                    Bespoke Customizations
-                  </div>
-                  <ul className="mt-1.5 space-y-1 text-sm text-[#221E1B]">
-                    {result.suggestedCustomizations.map((opt) => (
-                      <li key={opt}>• {opt}</li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
+        {/* Advisor Result Output */}
+        {result && (
+          <div className="p-5 rounded-2xl bg-[#F4EBE1]/90 border border-[#E8DCCF] space-y-4 text-xs">
+            <div className="flex items-center gap-2 text-[#2E2A25] font-bold border-b border-[#E8DCCF] pb-2">
+              <Bot className="w-4 h-4 text-[#C85A32]" />
+              <span>Crafting Advice &amp; Artisan Match</span>
+            </div>
 
-              <div className="pt-3 border-t border-[#EFE8DE] text-xs text-[#4D6B59] font-medium">
-                Artisan Cluster Match: {result.artisanMatchNote}
+            <p className="text-[#2E2A25] leading-relaxed font-editorial text-sm">
+              &ldquo;{result.craftRecommendation}&rdquo;
+            </p>
+
+            <div className="space-y-1.5">
+              <span className="font-bold text-[#2E2A25] block uppercase text-[10px] tracking-wider">
+                Recommended Natural Materials:
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {result.recommendedMaterials.map((mat, i) => (
+                  <span
+                    key={i}
+                    className="bg-white border border-[#E8DCCF] px-2.5 py-0.5 rounded-md text-stone-700 font-medium"
+                  >
+                    {mat}
+                  </span>
+                ))}
               </div>
             </div>
-          )}
-        </div>
+
+            <div className="space-y-1.5">
+              <span className="font-bold text-[#2E2A25] block uppercase text-[10px] tracking-wider">
+                Suggested Customization Specs:
+              </span>
+              <ul className="list-disc list-inside space-y-1 text-stone-700">
+                {result.suggestedCustomizations.map((spec, i) => (
+                  <li key={i}>{spec}</li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="pt-2 border-t border-[#E8DCCF] flex items-center justify-between gap-3 text-[11px] text-[#5F7464]">
+              <span className="italic">{result.artisanMatchNote}</span>
+              <button
+                type="button"
+                onClick={() => setAdvisorOpen(false)}
+                className="text-[#2E2A25] font-bold hover:text-[#C85A32] hover:underline flex items-center gap-1 cursor-pointer shrink-0"
+              >
+                Browse Marketplace <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

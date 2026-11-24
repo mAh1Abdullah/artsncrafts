@@ -89,15 +89,29 @@ export const DEFAULT_CATEGORIES: Category[] = [
 
 const inMemoryCategories: Category[] = [...DEFAULT_CATEGORIES];
 
+let dbUnavailableUntil = 0;
+const DB_BACKOFF_MS = 60_000;
+
+function canQueryDb(): boolean {
+  return Boolean(db) && Date.now() >= dbUnavailableUntil;
+}
+
+function markDbQueryFailed(context: string, error: unknown): void {
+  if (Date.now() >= dbUnavailableUntil) {
+    console.warn(`[WAW-POS Database] ${context} failed, falling back to in-memory store for 60s:`, error);
+  }
+  dbUnavailableUntil = Date.now() + DB_BACKOFF_MS;
+}
+
 export async function getCategories(tenantId?: string): Promise<Category[]> {
-  if (db) {
+  if (canQueryDb() && db) {
     try {
       if (tenantId) {
         return await db.select().from(categories).where(eq(categories.tenantId, tenantId));
       }
       return await db.select().from(categories);
     } catch (error) {
-      console.warn('Database query failed for categories, returning in-memory:', error);
+      markDbQueryFailed('getCategories', error);
     }
   }
   if (tenantId) {
@@ -397,14 +411,14 @@ let inMemoryAuditLogs: StockAuditLog[] = [
 ];
 
 export async function getProducts(tenantId?: string): Promise<Product[]> {
-  if (db) {
+  if (canQueryDb() && db) {
     try {
       if (tenantId) {
         return await db.select().from(products).where(eq(products.tenantId, tenantId));
       }
       return await db.select().from(products);
     } catch (error) {
-      console.warn('Database query failed, returning in-memory products:', error);
+      markDbQueryFailed('getProducts', error);
     }
   }
   if (tenantId) {
@@ -414,12 +428,12 @@ export async function getProducts(tenantId?: string): Promise<Product[]> {
 }
 
 export async function getProductById(id: string): Promise<Product | undefined> {
-  if (db) {
+  if (canQueryDb() && db) {
     try {
       const results = await db.select().from(products).where(eq(products.id, id));
       if (results.length > 0) return results[0];
     } catch (error) {
-      console.warn('Database query failed, falling back to in-memory:', error);
+      markDbQueryFailed('getProductById', error);
     }
   }
   return inMemoryProducts.find((p) => p.id === id);
@@ -429,7 +443,7 @@ export async function getProductByBarcode(barcode: string, tenantId?: string): P
   const cleanBarcode = barcode.trim();
   if (!cleanBarcode) return undefined;
 
-  if (db) {
+  if (canQueryDb() && db) {
     try {
       if (tenantId) {
         const results = await db
@@ -446,7 +460,7 @@ export async function getProductByBarcode(barcode: string, tenantId?: string): P
         if (results.length > 0) return results[0];
       }
     } catch (error) {
-      console.warn('Database barcode query failed, falling back to in-memory:', error);
+      markDbQueryFailed('getProductByBarcode', error);
     }
   }
 
@@ -789,7 +803,7 @@ export async function getStockAuditLogs(filters?: {
   adjustmentType?: string;
   limit?: number;
 }): Promise<StockAuditLog[]> {
-  if (db) {
+  if (canQueryDb() && db) {
     try {
       const results = filters?.productId
         ? await db
@@ -805,7 +819,7 @@ export async function getStockAuditLogs(filters?: {
             .limit(filters?.limit || 100);
       if (results.length > 0) return results;
     } catch (error) {
-      console.warn('Database query failed for audit logs, using in-memory store:', error);
+      markDbQueryFailed('getStockAuditLogs', error);
     }
   }
 

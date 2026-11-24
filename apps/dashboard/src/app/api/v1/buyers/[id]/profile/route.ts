@@ -1,19 +1,7 @@
 import { NextRequest } from 'next/server';
-import { z } from 'zod';
+import { UpdateBuyerProfileRequestSchema } from '@waw/contracts';
 import { ok, problem, validationProblem } from '@/lib/api/response';
 import { getBuyerProfile, updateBuyerProfile } from '@/lib/db/marketplace';
-
-const UpdateBuyerProfileSchema = z.object({
-  trustScore: z.coerce.number().min(0).max(100).optional(),
-  codEligible: z.boolean().optional(),
-  styleProfile: z
-    .object({
-      department: z.string().min(1).max(120),
-      favoriteCrafts: z.array(z.string()).max(10),
-      preferredColors: z.array(z.string()).max(10),
-    })
-    .optional(),
-});
 
 export async function GET(
   req: NextRequest,
@@ -39,7 +27,7 @@ export async function PATCH(
       });
     }
 
-    const parsed = UpdateBuyerProfileSchema.safeParse(rawBody);
+    const parsed = UpdateBuyerProfileRequestSchema.safeParse(rawBody);
     if (!parsed.success) {
       return validationProblem(req, parsed.error);
     }

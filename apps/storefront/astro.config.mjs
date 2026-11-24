@@ -4,6 +4,10 @@ import node from '@astrojs/node';
 import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
+  base: '/storefront',
+  devToolbar: {
+    enabled: false,
+  },
   output: 'server',
   adapter: node({
     mode: 'standalone',

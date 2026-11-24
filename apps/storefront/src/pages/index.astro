@@ -1,5 +1,7 @@
 ---
 import StorefrontLayout from '../layouts/StorefrontLayout.astro';
+import { HeroIsland } from '../components/HeroIsland';
+import { CuratedSectionsIsland } from '../components/CuratedSectionsIsland';
 import { CatalogExplorer } from '../components/CatalogExplorer';
 import { createServerApiClient } from '../lib/api';
 import type { ProductDTO, VendorDTO } from '@waw/contracts';
@@ -18,114 +20,34 @@ try {
 } catch {
   // Islands hydrate automatically once Next.js REST API is reachable
 }
+
+const spotlightProduct =
+  products.find((p) => p.category === 'textiles') ?? products[0] ?? null;
 ---
 
 <StorefrontLayout>
-  <!-- Editorial Hero -->
-  <section class="relative border-b border-[#E5DDD2] bg-[#F3EFE9]">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14 lg:py-20 grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-center">
-      <div class="lg:col-span-6 space-y-6">
-        <div class="text-xs font-semibold uppercase tracking-[0.2em] text-[#B84A27]">
-          Direct From Bangladeshi Craft Clusters
-        </div>
-        <h1 class="font-editorial text-4xl sm:text-5xl lg:text-[54px] font-semibold leading-[1.08] tracking-tight text-[#221E1B]">
-          Heirloom craft shaped by hand, kiln, and loom.
-        </h1>
-        <p class="text-base sm:text-lg text-[#4A413A] max-w-xl leading-relaxed">
-          Collect museum-grade Sonargaon Jamdani, Dhamrai terracotta, Sylhet silver filigree, and Chittagong teak tableware—with live workshop inventory synced directly from WAW-POS.
-        </p>
-        <div class="flex flex-wrap items-center gap-3 pt-2">
-          <a
-            href="#collections"
-            class="px-6 py-3 rounded-lg bg-[#B84A27] hover:bg-[#9c3d1f] text-white text-sm font-semibold transition-colors"
-          >
-            Explore Collections
-          </a>
-          <a
-            href="/raw-materials"
-            class="px-6 py-3 rounded-lg border border-[#221E1B] text-[#221E1B] hover:bg-[#221E1B] hover:text-white text-sm font-semibold transition-colors"
-          >
-            Source Raw Materials
-          </a>
-        </div>
-      </div>
+  <!-- Editorial Craft Hero & Category Circles -->
+  <HeroIsland client:load spotlightProduct={spotlightProduct} />
 
-      <div class="lg:col-span-6">
-        <div class="aspect-[4/3] rounded-2xl overflow-hidden bg-[#E6DDD1] shadow-lg">
-          <img
-            src="/images/artisans/artisans_hero_workshop_1795181990328.jpg"
-            alt="Master Bangladeshi artisan crafting earthenware in sunlit workshop"
-            class="w-full h-full object-cover"
-          />
-        </div>
-      </div>
-    </div>
-  </section>
+  <!-- Curated Editorial Discovery Sections (Editors' Picks, Regional Shops, Gifts) -->
+  <CuratedSectionsIsland client:load products={products} vendors={vendors} />
 
   <!-- Live Catalog Explorer -->
-  <section id="collections" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+  <section id="collections" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
     <div class="mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
       <div>
-        <div class="text-xs font-semibold uppercase tracking-[0.18em] text-[#B84A27]">
+        <div class="text-xs font-semibold uppercase tracking-[0.18em] text-[#C85A32]">
           Curated Archive
         </div>
-        <h2 class="mt-1 font-editorial text-3xl sm:text-4xl font-semibold text-[#221E1B]">
-          Featured Handcrafted Pieces
+        <h2 class="mt-1 font-editorial text-3xl sm:text-4xl font-semibold text-[#2E2A25]">
+          Explore Handcrafted Pieces
         </h2>
       </div>
-      <p class="text-sm text-[#6E6359] max-w-md">
+      <p class="text-sm text-stone-600 max-w-md">
         Every piece is crafted in small batches and backed by live workshop stock verification and Pathao or Steadfast insured delivery.
       </p>
     </div>
 
     <CatalogExplorer client:load initialProducts={products} />
   </section>
-
-  <!-- Verified Artisan Studios Strip -->
-  {vendors.length > 0 && (
-    <section class="border-t border-[#E5DDD2] bg-[#F3EFE9]/60 py-16">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="mb-8 flex items-end justify-between gap-4">
-          <div>
-            <div class="text-xs font-semibold uppercase tracking-[0.18em] text-[#4D6B59]">
-              Verified Workshops
-            </div>
-            <h2 class="mt-1 font-editorial text-3xl font-semibold text-[#221E1B]">
-              Meet the Master Studios
-            </h2>
-          </div>
-          <a href="/sell" class="text-sm font-medium text-[#B84A27] hover:underline">
-            Apply as an Artisan →
-          </a>
-        </div>
-
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {vendors.slice(0, 6).map((vendor) => (
-            <a
-              href={`/shops/${vendor.publicSlug}`}
-              class="group rounded-xl border border-[#E5DDD2] bg-[#FAF9F6] hover:border-[#221E1B] overflow-hidden transition-colors"
-            >
-              <div class="aspect-[16/9] bg-[#EFE9E0] overflow-hidden">
-                <img
-                  src={vendor.bannerUrl}
-                  alt={vendor.displayName}
-                  loading="lazy"
-                  class="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-500"
-                />
-              </div>
-              <div class="p-5">
-                <div class="text-xs text-[#6E6359]">{vendor.workshopLocation}</div>
-                <h3 class="mt-1 font-editorial text-lg font-semibold text-[#221E1B] group-hover:text-[#B84A27] transition-colors">
-                  {vendor.displayName}
-                </h3>
-                <p class="mt-1.5 text-xs text-[#574E46] line-clamp-2 leading-relaxed">
-                  {vendor.description}
-                </p>
-              </div>
-            </a>
-          ))}
-        </div>
-      </div>
-    </section>
-  )}
 </StorefrontLayout>

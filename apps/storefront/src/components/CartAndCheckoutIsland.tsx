@@ -16,7 +16,7 @@ import {
   type OrderDTO,
   type PaymentMethod,
 } from '@waw/contracts';
-import { wawApi } from '../lib/api';
+import { storefrontPath, wawApi } from '../lib/api';
 import {
   clearCart,
   formatMoney,
@@ -255,7 +255,7 @@ export function CartAndCheckoutIsland() {
               </div>
               <div className="flex flex-col gap-2">
                 <a
-                  href="/account"
+                  href={storefrontPath('/account')}
                   className="w-full py-2.5 rounded-lg bg-[#221E1B] hover:bg-[#B84A27] text-white text-sm font-medium transition-colors"
                 >
                   Track Shipment in My Account

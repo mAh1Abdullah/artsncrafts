@@ -1,18 +1,24 @@
 ---
 import StorefrontLayout from '../../layouts/StorefrontLayout.astro';
-import { CatalogExplorer } from '../../components/CatalogExplorer';
-import { createServerApiClient } from '../../lib/api';
-import type { ProductDTO, VendorDTO } from '@waw/contracts';
+import { VendorShopIsland } from '../../components/VendorShopIsland';
+import { createServerApiClient, storefrontPath } from '../../lib/api';
+import type { ProductDTO, ReviewDTO, VendorDTO } from '@waw/contracts';
 
 const { slug } = Astro.params;
 const api = createServerApiClient();
 
 let vendor: (VendorDTO & { products: ProductDTO[] }) | null = null;
+let initialReviews: ReviewDTO[] = [];
 
 if (slug) {
   try {
-    const res = await api.getVendor(slug);
-    vendor = res.data;
+    const [vendorRes, reviewsRes] = await Promise.all([
+      api.getVendor(slug),
+      api.getReviews({ status: 'approved' }).catch(() => ({ data: [] as ReviewDTO[] })),
+    ]);
+    vendor = vendorRes.data;
+    const vendorProductIds = new Set(vendor.products.map((p) => p.id));
+    initialReviews = reviewsRes.data.filter((r) => vendorProductIds.has(r.productId));
   } catch {
     vendor = null;
   }
@@ -24,57 +30,24 @@ if (slug) {
   description={vendor?.description || "Verified handcrafted studio on The Artisan's Market."}
 >
   {vendor ? (
-    <>
-      <section class="border-b border-[#E5DDD2] bg-[#F3EFE9]">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-          <div class="lg:col-span-7 space-y-4">
-            <div class="text-xs font-semibold uppercase tracking-widest text-[#4D6B59]">
-              Verified Artisan Studio · {vendor.workshopLocation}
-            </div>
-            <h1 class="font-editorial text-4xl font-semibold text-[#221E1B]">
-              {vendor.displayName}
-            </h1>
-            <p class="text-base text-[#4A413A] leading-relaxed max-w-2xl">
-              {vendor.description}
-            </p>
-            <div class="pt-2 flex flex-wrap gap-6 text-xs font-mono text-[#6E6359]">
-              <span>Specialty: {vendor.craftSpecialty}</span>
-              <span>Rating: ★ {vendor.rating.toFixed(1)} ({vendor.reviewCount})</span>
-              <span>{vendor.allowCod ? 'COD Accepted' : 'Prepaid Only'}</span>
-            </div>
-          </div>
-          <div class="lg:col-span-5">
-            <div class="aspect-[16/10] rounded-xl overflow-hidden bg-[#E5DDD2]">
-              <img
-                src={vendor.bannerUrl}
-                alt={vendor.displayName}
-                class="w-full h-full object-cover"
-              />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
-        <h2 class="font-editorial text-2xl font-semibold text-[#221E1B] mb-6">
-          Studio Catalog ({vendor.products.length})
-        </h2>
-        <CatalogExplorer
-          client:load
-          initialProducts={vendor.products}
-          fixedVendorSlug={vendor.publicSlug}
-        />
-      </section>
-    </>
+    <VendorShopIsland
+      client:load
+      vendor={vendor}
+      products={vendor.products}
+      initialReviews={initialReviews}
+    />
   ) : (
     <div class="max-w-3xl mx-auto px-4 py-20 text-center space-y-3">
-      <h1 class="font-editorial text-3xl font-semibold text-[#221E1B]">
+      <h1 class="font-editorial text-3xl font-semibold text-[#2E2A25]">
         Artisan Studio Not Found
       </h1>
-      <p class="text-sm text-[#6E6359]">
+      <p class="text-sm text-stone-600">
         We couldn't find a verified workshop at that address.
       </p>
-      <a href="/" class="inline-block mt-2 px-5 py-2.5 rounded-lg bg-[#221E1B] text-white text-sm font-medium">
+      <a
+        href={storefrontPath('/')}
+        class="inline-block mt-2 px-5 py-2.5 rounded-full bg-[#2E2A25] text-white text-sm font-medium"
+      >
         Explore All Crafts
       </a>
     </div>

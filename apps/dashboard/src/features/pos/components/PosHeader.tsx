@@ -126,7 +126,7 @@ export function PosHeader({ pos }: PosHeaderProps) {
         <div className="flex h-16 items-center justify-between gap-2 px-4 sm:px-5">
           <div className="flex items-center space-x-2.5 shrink-0">
             <Link
-              href="/"
+              href="/ops"
               title="Back to Operations Command Hub"
               className="flex items-center justify-center h-9 w-9 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-base shadow-xs transition-colors shrink-0"
             >
@@ -281,7 +281,7 @@ export function PosHeader({ pos }: PosHeaderProps) {
           {/* User Role & Quick Context Switchers */}
           <div className="flex items-center space-x-1.5 shrink-0">
             <Link
-              href="/"
+              href="/ops"
               className="flex items-center space-x-1 text-xs bg-slate-900 hover:bg-slate-800 text-white px-2.5 py-1.5 rounded-lg font-medium transition-colors whitespace-nowrap"
               title="Back to Operations Command Hub"
             >
@@ -289,11 +289,9 @@ export function PosHeader({ pos }: PosHeaderProps) {
               <span>Ops Hub</span>
             </Link>
             <a
-              href={process.env.NEXT_PUBLIC_STOREFRONT_URL || "http://localhost:4321"}
-              target="_blank"
-              rel="noreferrer"
-              className="hidden 2xl:flex items-center space-x-1 text-xs bg-[#B84A27] hover:bg-[#9c3d1f] text-white px-2.5 py-1.5 rounded-lg font-medium transition-colors whitespace-nowrap"
-              title="Open Astro 7.4 Customer Storefront (Port 4321)"
+              href={process.env.NEXT_PUBLIC_STOREFRONT_URL || "/storefront"}
+              className="hidden xl:flex items-center space-x-1 text-xs bg-[#B84A27] hover:bg-[#9c3d1f] text-white px-2.5 py-1.5 rounded-lg font-medium transition-colors whitespace-nowrap"
+              title="Open Astro 7.4 Customer Storefront (/storefront)"
             >
               <Globe className="h-3.5 w-3.5" />
               <span>Storefront</span>

@@ -1,5 +1,5 @@
 // WAW-POS Offline-First Service Worker & Background Sync Engine
-const CACHE_NAME = 'waw-pos-cache-v3';
+const CACHE_NAME = 'waw-pos-cache-v5';
 const STATIC_ASSETS = [
   '/manifest.json',
   '/icon.svg',
@@ -43,8 +43,17 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Never intercept Next.js RSC payloads, HMR streams, or AI Studio bridge assets
+  // Never intercept Astro storefront proxy, Next.js RSC payloads, HMR streams, or AI Studio bridge assets
   if (
+    url.pathname === '/storefront' ||
+    url.pathname.startsWith('/storefront/') ||
+    url.pathname.startsWith('/_astro/') ||
+    url.pathname.startsWith('/@vite/') ||
+    url.pathname.startsWith('/@id/') ||
+    url.pathname.startsWith('/@fs/') ||
+    url.pathname === '/@react-refresh' ||
+    url.pathname.startsWith('/src/') ||
+    url.pathname.startsWith('/node_modules/') ||
     request.headers.get('RSC') === '1' ||
     request.headers.get('Next-Router-Prefetch') === '1' ||
     url.searchParams.has('_rsc') ||

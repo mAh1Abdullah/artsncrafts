@@ -1,6 +1,5 @@
 import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
-import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -110,29 +109,8 @@ function launchWorkspace(name, binRelativePath, args, cwdRelativePath, port) {
   return child;
 }
 
-function waitForPort(port, timeoutMs = 15000) {
-  const deadline = Date.now() + timeoutMs;
-  return new Promise((resolve) => {
-    function attempt() {
-      if (shuttingDown || Date.now() > deadline) {
-        resolve(false);
-        return;
-      }
-      const socket = net.createConnection({ host: '127.0.0.1', port: Number(port) });
-      socket.once('connect', () => {
-        socket.destroy();
-        resolve(true);
-      });
-      socket.once('error', () => {
-        socket.destroy();
-        setTimeout(attempt, 200).unref();
-      });
-    }
-    attempt();
-  });
-}
-
-// 3. Boot Next.js Dashboard (:3000) first with full CPU priority for fastest startup
+// 3. Boot Next.js Dashboard (:3000) and Astro Storefront (:4321) together so
+// `/storefront` is immediately ready the moment port 3000 accepts connections.
 launchWorkspace(
   'dashboard',
   'node_modules/.bin/next',
@@ -141,14 +119,10 @@ launchWorkspace(
   dashboardPort
 );
 
-// 4. Start Astro Storefront (:4321) immediately once Dashboard (:3000) is accepting connections
-waitForPort(dashboardPort).then(() => {
-  if (shuttingDown) return;
-  launchWorkspace(
-    'storefront',
-    'node_modules/.bin/astro',
-    ['dev', '--port', String(storefrontPort), '--host', host],
-    'apps/storefront',
-    storefrontPort
-  );
-});
+launchWorkspace(
+  'storefront',
+  'node_modules/.bin/astro',
+  ['dev', '--port', String(storefrontPort), '--host', host],
+  'apps/storefront',
+  storefrontPort
+);

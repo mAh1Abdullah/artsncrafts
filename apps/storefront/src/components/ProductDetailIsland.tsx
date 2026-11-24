@@ -11,7 +11,7 @@ import {
   Star,
 } from 'lucide-react';
 import type { ProductDTO, ReviewDTO } from '@waw/contracts';
-import { wawApi } from '../lib/api';
+import { storefrontPath, wawApi } from '../lib/api';
 import {
   addToCart,
   formatMoney,
@@ -126,7 +126,7 @@ export function ProductDetailIsland({
         <div className="lg:col-span-5 space-y-6">
           <div>
             <a
-              href={`/shops/${product.vendorSlug}`}
+              href={storefrontPath(`/shops/${product.vendorSlug}`)}
               className="text-xs font-semibold uppercase tracking-widest text-[#B84A27] hover:underline"
             >
               {product.vendorName}

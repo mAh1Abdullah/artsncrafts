@@ -1,7 +1,7 @@
 ---
 import StorefrontLayout from '../../layouts/StorefrontLayout.astro';
 import { ProductDetailIsland } from '../../components/ProductDetailIsland';
-import { createServerApiClient } from '../../lib/api';
+import { createServerApiClient, storefrontPath } from '../../lib/api';
 import type { ProductDTO, ReviewDTO } from '@waw/contracts';
 
 const { id } = Astro.params;
@@ -30,11 +30,11 @@ if (id) {
 >
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
     <nav class="mb-8 text-xs text-[#6E6359] flex items-center gap-2">
-      <a href="/" class="hover:text-[#221E1B]">Collections</a>
+      <a href={storefrontPath('/')} class="hover:text-[#221E1B]">Collections</a>
       <span>/</span>
       {product && (
         <>
-          <a href={`/shops/${product.vendorSlug}`} class="hover:text-[#221E1B]">
+          <a href={storefrontPath(`/shops/${product.vendorSlug}`)} class="hover:text-[#221E1B]">
             {product.vendorName}
           </a>
           <span>/</span>
@@ -54,7 +54,7 @@ if (id) {
           This handcrafted listing may have been sold out or removed from the catalog.
         </p>
         <a
-          href="/"
+          href={storefrontPath('/')}
           class="inline-block mt-2 px-5 py-2.5 rounded-lg bg-[#221E1B] text-white text-sm font-medium"
         >
           Return to Collections
