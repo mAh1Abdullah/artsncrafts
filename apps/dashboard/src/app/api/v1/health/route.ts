@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { ok } from '@/lib/api/response';
-import { db } from '@/lib/db';
+import { isDbOperational } from '@/lib/db/products';
 
 export async function GET(req: NextRequest) {
   return ok(
@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
       status: 'healthy',
       service: 'waw-dashboard-api',
       framework: 'Next.js 16',
-      database: db ? 'postgresql-connected' : 'in-memory-fallback',
+      database: isDbOperational() ? 'postgresql-connected' : 'in-memory-fallback',
       uptimeSeconds: Math.round(process.uptime()),
     },
     { cacheControl: 'no-store' }

@@ -1,0 +1,119 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "services": {
+    "dashboard": {
+      "root": "apps/dashboard",
+      "framework": "nextjs"
+    },
+    "storefront": {
+      "root": "apps/storefront",
+      "framework": "astro",
+      "bindings": [
+        {
+          "type": "service",
+          "service": "dashboard",
+          "format": "url",
+          "env": "API_URL"
+        }
+      ]
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": {
+        "service": "dashboard"
+      }
+    },
+    {
+      "source": "/dashboard",
+      "destination": {
+        "service": "dashboard"
+      }
+    },
+    {
+      "source": "/dashboard/(.*)",
+      "destination": {
+        "service": "dashboard"
+      }
+    },
+    {
+      "source": "/pos",
+      "destination": {
+        "service": "dashboard"
+      }
+    },
+    {
+      "source": "/pos/(.*)",
+      "destination": {
+        "service": "dashboard"
+      }
+    },
+    {
+      "source": "/ops",
+      "destination": {
+        "service": "dashboard"
+      }
+    },
+    {
+      "source": "/ops/(.*)",
+      "destination": {
+        "service": "dashboard"
+      }
+    },
+    {
+      "source": "/seller",
+      "destination": {
+        "service": "dashboard"
+      }
+    },
+    {
+      "source": "/seller/(.*)",
+      "destination": {
+        "service": "dashboard"
+      }
+    },
+    {
+      "source": "/admin",
+      "destination": {
+        "service": "dashboard"
+      }
+    },
+    {
+      "source": "/admin/(.*)",
+      "destination": {
+        "service": "dashboard"
+      }
+    },
+    {
+      "source": "/shipping",
+      "destination": {
+        "service": "dashboard"
+      }
+    },
+    {
+      "source": "/shipping/(.*)",
+      "destination": {
+        "service": "dashboard"
+      }
+    },
+    {
+      "source": "/inventory",
+      "destination": {
+        "service": "dashboard"
+      }
+    },
+    {
+      "source": "/inventory/(.*)",
+      "destination": {
+        "service": "dashboard"
+      }
+    },
+    {
+      "source": "/(.*)",
+      "destination": {
+        "service": "storefront"
+      }
+    }
+  ]
+}

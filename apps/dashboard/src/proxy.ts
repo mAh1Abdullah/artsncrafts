@@ -67,13 +67,15 @@ const ROUTE_PERMISSION_MAP: Array<{
 
 function getAllowedCorsHeaders(req: NextRequest): Record<string, string> {
   const origin = req.headers.get('origin');
-  const configuredOrigin = process.env.STOREFRONT_ORIGIN || 'http://localhost:4321';
+  const configuredOrigin = (process.env.STOREFRONT_URL || process.env.STOREFRONT_ORIGIN || 'http://localhost:4321').replace(/\/+$/, '');
+  const apiBound = (process.env.API_URL || process.env.DASHBOARD_URL || '').replace(/\/+$/, '');
   const allowlist = new Set([
     'http://localhost:4321',
     'http://127.0.0.1:4321',
     'http://localhost:3000',
     'http://127.0.0.1:3000',
     configuredOrigin,
+    ...(apiBound ? [apiBound] : []),
   ]);
 
   const headers: Record<string, string> = { Vary: 'Origin' };
@@ -82,7 +84,7 @@ function getAllowedCorsHeaders(req: NextRequest): Record<string, string> {
     headers['Access-Control-Allow-Credentials'] = 'true';
     headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, PATCH, DELETE, OPTIONS';
     headers['Access-Control-Allow-Headers'] =
-      'Content-Type, Authorization, Idempotency-Key, X-Request-Id, X-Tenant-Id, X-Store-Id, X-User-Role, X-Subscription-Tier';
+      'Content-Type, Authorization, Idempotency-Key, X-Request-Id, X-Tenant-Id, X-Store-Id, X-User-Role, X-Subscription-Tier, X-Calling-Service';
   }
   return headers;
 }

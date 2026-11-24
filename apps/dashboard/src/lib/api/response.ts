@@ -21,13 +21,15 @@ export function getRequestId(req: NextRequest): string {
 
 export function buildCorsHeaders(req: NextRequest): Record<string, string> {
   const origin = req.headers.get('origin');
-  const configured = process.env.STOREFRONT_ORIGIN || 'http://localhost:4321';
+  const configured = (process.env.STOREFRONT_URL || process.env.STOREFRONT_ORIGIN || 'http://localhost:4321').replace(/\/+$/, '');
+  const apiBound = (process.env.API_URL || process.env.DASHBOARD_URL || '').replace(/\/+$/, '');
   const allowedOrigins = new Set([
     'http://localhost:4321',
     'http://127.0.0.1:4321',
     'http://localhost:3000',
     'http://127.0.0.1:3000',
     configured,
+    ...(apiBound ? [apiBound] : []),
   ]);
 
   const headers: Record<string, string> = {

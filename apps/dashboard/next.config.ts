@@ -26,8 +26,14 @@ const nextConfig: NextConfig = {
     ],
   },
   async rewrites() {
-    const storefrontOrigin =
-      process.env.STOREFRONT_INTERNAL_URL || "http://127.0.0.1:4321";
+    if (process.env.VERCEL === "1") {
+      return { beforeFiles: [] };
+    }
+    const storefrontOrigin = (
+      process.env.STOREFRONT_URL ||
+      process.env.STOREFRONT_INTERNAL_URL ||
+      "http://127.0.0.1:4321"
+    ).replace(/\/+$/, "");
     return {
       beforeFiles: [
         {

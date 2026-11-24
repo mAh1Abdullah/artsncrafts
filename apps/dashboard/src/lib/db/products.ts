@@ -90,15 +90,41 @@ export const DEFAULT_CATEGORIES: Category[] = [
 const inMemoryCategories: Category[] = [...DEFAULT_CATEGORIES];
 
 let dbUnavailableUntil = 0;
+let dbSchemaMissingLogged = false;
 const DB_BACKOFF_MS = 60_000;
+const DB_SCHEMA_MISSING_BACKOFF_MS = 24 * 60 * 60 * 1000;
 
-function canQueryDb(): boolean {
+export function isDbOperational(): boolean {
   return Boolean(db) && Date.now() >= dbUnavailableUntil;
 }
 
+function canQueryDb(): boolean {
+  return isDbOperational();
+}
+
+function isMissingRelationError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const err = error as Record<string, unknown>;
+  const cause = (err.cause && typeof err.cause === 'object' ? err.cause : {}) as Record<string, unknown>;
+  const code = String(err.code || cause.code || '');
+  const message = `${String(err.message || '')} ${String(cause.message || '')}`.toLowerCase();
+  return code === '42P01' || (message.includes('relation') && message.includes('does not exist'));
+}
+
 function markDbQueryFailed(context: string, error: unknown): void {
+  if (isMissingRelationError(error)) {
+    if (!dbSchemaMissingLogged) {
+      dbSchemaMissingLogged = true;
+      console.info(
+        `[WAW-POS Database] PostgreSQL schema is not initialized yet (${context}); using in-memory catalog store.`
+      );
+    }
+    dbUnavailableUntil = Date.now() + DB_SCHEMA_MISSING_BACKOFF_MS;
+    return;
+  }
+
   if (Date.now() >= dbUnavailableUntil) {
-    console.warn(`[WAW-POS Database] ${context} failed, falling back to in-memory store for 60s:`, error);
+    console.warn(`[WAW-POS Database] ${context} failed, falling back to in-memory store for 60s.`);
   }
   dbUnavailableUntil = Date.now() + DB_BACKOFF_MS;
 }
@@ -471,12 +497,12 @@ export async function getProductByBarcode(barcode: string, tenantId?: string): P
 }
 
 export async function createProduct(product: NewProduct): Promise<Product> {
-  if (db) {
+  if (canQueryDb() && db) {
     try {
       const result = await db.insert(products).values(product).returning();
       if (result.length > 0) return result[0];
     } catch (error) {
-      console.warn('Database insert failed, adding to in-memory store:', error);
+      markDbQueryFailed('createProduct', error);
     }
   }
 
@@ -509,12 +535,12 @@ export async function createProduct(product: NewProduct): Promise<Product> {
 }
 
 export async function updateProduct(id: string, product: Partial<NewProduct>): Promise<Product | undefined> {
-  if (db) {
+  if (canQueryDb() && db) {
     try {
       const result = await db.update(products).set(product).where(eq(products.id, id)).returning();
       if (result.length > 0) return result[0];
     } catch (error) {
-      console.warn('Database update failed, updating in-memory store:', error);
+      markDbQueryFailed('updateProduct', error);
     }
   }
 
@@ -545,11 +571,11 @@ export async function updateProduct(id: string, product: Partial<NewProduct>): P
 }
 
 export async function deleteProduct(id: string): Promise<void> {
-  if (db) {
+  if (canQueryDb() && db) {
     try {
       await db.delete(products).where(eq(products.id, id));
     } catch (error) {
-      console.warn('Database delete failed, deleting from in-memory store:', error);
+      markDbQueryFailed('deleteProduct', error);
     }
   }
   inMemoryProducts = inMemoryProducts.filter((p) => p.id !== id);
@@ -557,11 +583,11 @@ export async function deleteProduct(id: string): Promise<void> {
 
 export async function bulkDeleteProducts(ids: string[]): Promise<{ count: number }> {
   if (!ids || ids.length === 0) return { count: 0 };
-  if (db) {
+  if (canQueryDb() && db) {
     try {
       await db.delete(products).where(inArray(products.id, ids));
     } catch (error) {
-      console.warn('Database bulk delete failed, deleting from in-memory store:', error);
+      markDbQueryFailed('bulkDeleteProducts', error);
     }
   }
   const idSet = new Set(ids);
@@ -579,14 +605,14 @@ export async function bulkUpdateStock(
 ): Promise<{ count: number }> {
   if (!ids || ids.length === 0) return { count: 0 };
   const validStock = Math.max(0, Math.floor(newStock));
-  if (db) {
+  if (canQueryDb() && db) {
     try {
       await db
         .update(products)
         .set({ currentStock: validStock, updatedAt: new Date() })
         .where(inArray(products.id, ids));
     } catch (error) {
-      console.warn('Database bulk stock update failed, updating in-memory store:', error);
+      markDbQueryFailed('bulkUpdateStock', error);
     }
   }
   const idSet = new Set(ids);
@@ -637,14 +663,14 @@ export async function bulkAdjustStock(
     const existing = inMemoryProducts.find((p) => p.id === id);
     if (existing) {
       const updatedStock = Math.max(0, (existing.currentStock ?? 0) + delta);
-      if (db) {
+      if (canQueryDb() && db) {
         try {
           await db
             .update(products)
             .set({ currentStock: updatedStock, updatedAt: new Date() })
             .where(eq(products.id, id));
         } catch (error) {
-          console.warn('Database stock adjust failed:', error);
+          markDbQueryFailed('bulkAdjustStock', error);
         }
       }
     }
@@ -688,14 +714,14 @@ export async function bulkUpdateReorderLevel(
 ): Promise<{ count: number }> {
   if (!ids || ids.length === 0) return { count: 0 };
   const validLevel = Math.max(0, Math.floor(reorderLevel));
-  if (db) {
+  if (canQueryDb() && db) {
     try {
       await db
         .update(products)
         .set({ reorderLevel: validLevel, updatedAt: new Date() })
         .where(inArray(products.id, ids));
     } catch (error) {
-      console.warn('Database bulk reorder level update failed:', error);
+      markDbQueryFailed('bulkUpdateReorderLevel', error);
     }
   }
   const idSet = new Set(ids);
@@ -744,14 +770,14 @@ export async function adjustProductStock(params: SingleStockAdjustmentParams): P
   }
 
   // Update DB if connected
-  if (db) {
+  if (canQueryDb() && db) {
     try {
       await db
         .update(products)
         .set({ currentStock: finalStock, updatedAt: new Date() })
         .where(eq(products.id, prod.id));
     } catch (error) {
-      console.warn('Database stock update failed, using in-memory store:', error);
+      markDbQueryFailed('adjustProductStock', error);
     }
   }
 
@@ -787,9 +813,9 @@ function recordStockAuditLogInStore(logData: Omit<StockAuditLog, 'id' | 'created
     createdAt: new Date(),
   };
 
-  if (db) {
+  if (canQueryDb() && db) {
     db.insert(stockAuditLogs).values(log).catch((err) => {
-      console.warn('Database insert failed for audit log:', err);
+      markDbQueryFailed('recordStockAuditLogInStore', err);
     });
   }
 
