@@ -48,7 +48,7 @@ export default async function OperationsHubPage() {
     .reduce((sum, s) => sum + s.netAmountBdt, 0);
 
   const storefrontUrl =
-    process.env.NEXT_PUBLIC_STOREFRONT_URL || "/storefront";
+    process.env.NEXT_PUBLIC_STOREFRONT_URL || "/";
 
   const workspaces = [
     {
@@ -174,7 +174,7 @@ export default async function OperationsHubPage() {
             href={storefrontUrl}
             className="text-xs font-semibold text-[#B84A27] hover:underline inline-flex items-center gap-1"
           >
-            <span>Open Customer Storefront (Astro 7.4 · /storefront)</span>
+            <span>Open Customer Storefront (Astro 7.4 · /)</span>
             <ExternalLink className="h-3.5 w-3.5" />
           </a>
         </div>

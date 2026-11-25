@@ -37,12 +37,36 @@ const nextConfig: NextConfig = {
     return {
       beforeFiles: [
         {
+          source: "/",
+          destination: `${storefrontOrigin}/`,
+        },
+        {
+          source: "/raw-materials",
+          destination: `${storefrontOrigin}/raw-materials`,
+        },
+        {
+          source: "/account",
+          destination: `${storefrontOrigin}/account`,
+        },
+        {
+          source: "/sell",
+          destination: `${storefrontOrigin}/sell`,
+        },
+        {
+          source: "/products/:path*",
+          destination: `${storefrontOrigin}/products/:path*`,
+        },
+        {
+          source: "/shops/:path*",
+          destination: `${storefrontOrigin}/shops/:path*`,
+        },
+        {
           source: "/storefront",
-          destination: `${storefrontOrigin}/storefront`,
+          destination: `${storefrontOrigin}/`,
         },
         {
           source: "/storefront/:path*",
-          destination: `${storefrontOrigin}/storefront/:path*`,
+          destination: `${storefrontOrigin}/:path*`,
         },
         {
           source: "/_astro/:path*",

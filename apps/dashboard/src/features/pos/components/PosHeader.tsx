@@ -289,9 +289,9 @@ export function PosHeader({ pos }: PosHeaderProps) {
               <span>Ops Hub</span>
             </Link>
             <a
-              href={process.env.NEXT_PUBLIC_STOREFRONT_URL || "/storefront"}
+              href={process.env.NEXT_PUBLIC_STOREFRONT_URL || "/"}
               className="hidden xl:flex items-center space-x-1 text-xs bg-[#B84A27] hover:bg-[#9c3d1f] text-white px-2.5 py-1.5 rounded-lg font-medium transition-colors whitespace-nowrap"
-              title="Open Astro 7.4 Customer Storefront (/storefront)"
+              title="Open Astro 7.4 Customer Storefront (/)"
             >
               <Globe className="h-3.5 w-3.5" />
               <span>Storefront</span>

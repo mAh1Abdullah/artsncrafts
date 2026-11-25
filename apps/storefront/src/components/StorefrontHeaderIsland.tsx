@@ -60,7 +60,11 @@ export function StorefrontHeaderIsland({
   const notifRef = useRef<HTMLDivElement>(null);
 
   const dashboardUrl = getDashboardUrl();
-  const isHome = currentPath === '/storefront' || currentPath === '/storefront/';
+  const isHome =
+    currentPath === '/' ||
+    currentPath === '' ||
+    currentPath === '/storefront' ||
+    currentPath === '/storefront/';
 
   useEffect(() => {
     const sync = () => {

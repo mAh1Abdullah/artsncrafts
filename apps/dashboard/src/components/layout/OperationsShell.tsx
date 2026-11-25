@@ -41,7 +41,7 @@ export function OperationsShell({
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const storefrontUrl =
-    process.env.NEXT_PUBLIC_STOREFRONT_URL || "/storefront";
+    process.env.NEXT_PUBLIC_STOREFRONT_URL || "/";
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 flex">
@@ -99,7 +99,7 @@ export function OperationsShell({
           </a>
           <div className="px-2 py-1 text-[11px] text-slate-500 flex items-center justify-between font-mono">
             <span>API /api/v1</span>
-            <span>Web /storefront</span>
+            <span>Web /</span>
           </div>
         </div>
       </aside>

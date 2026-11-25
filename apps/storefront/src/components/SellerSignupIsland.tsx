@@ -58,7 +58,7 @@ export function SellerSignupIsland() {
           <strong className="font-mono">{submittedVendor.status}</strong>. Once
           approved, your studio storefront will go live at{' '}
           <code className="font-mono text-[#B84A27]">
-            /storefront/shops/{submittedVendor.publicSlug}
+            {storefrontPath(`/shops/${submittedVendor.publicSlug}`)}
           </code>
           .
         </p>

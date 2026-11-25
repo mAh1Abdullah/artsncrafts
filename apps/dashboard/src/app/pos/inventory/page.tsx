@@ -41,13 +41,13 @@ export default async function PosInventoryPage() {
             </div>
           </div>
 
-          <a
-            href="/storefront"
+          <Link
+            href="/"
             className="inline-flex items-center gap-1.5 text-xs font-medium bg-[#18181B] hover:bg-[#B84A27] text-white px-3 py-1.5 rounded-lg transition-colors"
           >
             <Globe className="h-3.5 w-3.5" />
             <span>Artisans Storefront</span>
-          </a>
+          </Link>
         </div>
       </header>
 

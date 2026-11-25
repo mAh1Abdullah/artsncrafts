@@ -43,8 +43,14 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Never intercept Astro storefront proxy, Next.js RSC payloads, HMR streams, or AI Studio bridge assets
+  // Never intercept Astro storefront routes, Next.js RSC payloads, HMR streams, or AI Studio bridge assets
   if (
+    url.pathname === '/' ||
+    url.pathname === '/raw-materials' ||
+    url.pathname === '/account' ||
+    url.pathname === '/sell' ||
+    url.pathname.startsWith('/products/') ||
+    url.pathname.startsWith('/shops/') ||
     url.pathname === '/storefront' ||
     url.pathname.startsWith('/storefront/') ||
     url.pathname.startsWith('/_astro/') ||

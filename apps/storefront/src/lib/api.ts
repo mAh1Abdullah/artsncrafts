@@ -5,18 +5,12 @@ import {
   type StorefrontServiceContext,
 } from '@waw/contracts';
 
-export const STOREFRONT_BASE = '/storefront';
+export const STOREFRONT_BASE = '/';
 
 export function storefrontPath(path = '/'): string {
-  const base =
-    typeof window !== 'undefined' &&
-    !window.location.pathname.startsWith('/storefront')
-      ? ''
-      : STOREFRONT_BASE;
-
-  if (!path || path === '/') return base || '/';
-  if (path.startsWith('#')) return `${base || '/'}${path}`;
-  return `${base}${path.startsWith('/') ? path : `/${path}`}`;
+  if (!path || path === '/') return '/';
+  if (path.startsWith('#')) return `/${path}`;
+  return path.startsWith('/') ? path : `/${path}`;
 }
 
 function isLocalhostUrl(url: string): boolean {
