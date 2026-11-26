@@ -38,10 +38,19 @@ function isLocalhostOrigin(url: string): boolean {
 
 export function normalizeServiceOrigin(url: unknown): string {
   if (!url || typeof url !== 'string') return '';
-  return url
+  let cleaned = url
     .trim()
     .replace(/\/+$/, '')
     .replace(/\/api\/v1$/i, '');
+  if (
+    cleaned &&
+    !cleaned.startsWith('http://') &&
+    !cleaned.startsWith('https://') &&
+    !cleaned.startsWith('/')
+  ) {
+    cleaned = `https://${cleaned}`;
+  }
+  return cleaned;
 }
 
 /**

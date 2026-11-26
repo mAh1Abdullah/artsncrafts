@@ -1,8 +1,13 @@
 import path from "path";
 import type { NextConfig } from "next";
 
+const isVercel =
+  process.env.VERCEL === "1" ||
+  Boolean(process.env.VERCEL_ENV) ||
+  Boolean(process.env.VERCEL_URL);
+
 const nextConfig: NextConfig = {
-  output: "standalone",
+  ...(isVercel ? {} : { output: "standalone" }),
   transpilePackages: ["@waw/contracts"],
   allowedDevOrigins: [
     "*.run.app",

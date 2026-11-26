@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "astro dev --port 4321 --host 0.0.0.0",
+    "prebuild": "tsc -p ../../packages/contracts/tsconfig.json",
     "build": "astro build",
     "preview": "astro preview --port 4321 --host 0.0.0.0",
     "start": "node ./dist/server/entry.mjs",
@@ -14,6 +15,7 @@
   "dependencies": {
     "@astrojs/node": "^11.1.14",
     "@astrojs/react": "^7.1.9",
+    "@astrojs/vercel": "^11.0.22",
     "@tailwindcss/vite": "^4.3.5",
     "@waw/contracts": "*",
     "astro": "7.4.1",

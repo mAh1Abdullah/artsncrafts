@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ArrowRight, Heart } from 'lucide-react';
 import type { ProductDTO, VendorDTO } from '@waw/contracts';
-import { storefrontPath } from '../lib/api';
+import { storefrontPath, wawApi } from '../lib/api';
 import {
   formatMoney,
   getStoreSnapshot,
@@ -65,9 +65,11 @@ const SPECIAL_GIFT_TILES = [
 ] as const;
 
 export function CuratedSectionsIsland({
-  products,
-  vendors,
+  products: initialProducts,
+  vendors: initialVendors,
 }: CuratedSectionsIslandProps) {
+  const [products, setProducts] = useState<ProductDTO[]>(initialProducts);
+  const [vendors, setVendors] = useState<VendorDTO[]>(initialVendors);
   const [favoriteShopIds, setFavoriteShopIds] = useState<string[]>([]);
   const [currency, setCurrency] = useState<CurrencyCode>('BDT');
 
@@ -80,6 +82,23 @@ export function CuratedSectionsIsland({
     sync();
     return subscribeStore(sync);
   }, []);
+
+  useEffect(() => {
+    if (initialProducts.length === 0 || initialVendors.length === 0) {
+      Promise.all([
+        initialProducts.length === 0
+          ? wawApi.getProducts({ limit: 24 }).then((r) => setProducts(r.data))
+          : Promise.resolve(),
+        initialVendors.length === 0
+          ? wawApi
+              .getVendors({ status: 'approved', limit: 12 })
+              .then((r) => setVendors(r.data))
+          : Promise.resolve(),
+      ]).catch(() => {
+        // Keep current list if network unavailable
+      });
+    }
+  }, [initialProducts.length, initialVendors.length]);
 
   const scrollToCatalog = (category?: string) => {
     if (category) setSelectedCategory(category);
